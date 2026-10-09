@@ -15,9 +15,11 @@ The app accepts a locally selected PNG/JPEG/WebP, five manually placed source la
 - Genuine FP32 inference weights, opset 17, 77,144,129 bytes, provided as a [release asset](https://github.com/YuehpengChen/hip-ultrasound-editing/releases/tag/v0.1.0-browser).
 - Client-side inference and faithful geometric preprocessing/compositing.
 - Exactly three de-identified full-size 1024 × 768 examples from the non-training test partition; no identifiers in filenames or metadata. Only the identifying header is blacked out; the complete ultrasound field is retained.
-- Plain English editing controls, full-image grayscale difference display, full-resolution edited PNG and parameter downloads.
+- Plain English editing controls and full-image grayscale difference display.
 
 Source and edited previews preserve the complete image and its aspect ratio. The generator still uses its original native 256 × 256 region without rescaling; its result is placed back into the original full frame. All pixels outside that region are preserved, and the difference image is zero there. Restoring the example frames does not change their original model inputs or landmark geometry.
+
+Placed source landmarks p1, p2, p3 and p5 are locked and marked in orange, as is the derived head center f. Source p4 and the H diameter endpoints remain editable in blue. The target p5* is calculated from the requested roof angles and segment lengths; it is not an independently draggable control. For an uploaded image, a missing source p5 may be placed once before it locks. The edited image and parameter download buttons are not provided.
 
 **Training code and training images are not distributed.** The public model does not include the discriminator, optimizer, checkpoint training metadata or training pipeline.
 

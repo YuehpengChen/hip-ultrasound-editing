@@ -1,5 +1,5 @@
 import {prepareEdit,runPreparedEdit,rgbaToGrayscale,cropBox,extractNativeCrop,grayscaleBytes} from './geometry.mjs';
-import {LOCKED_COLOR,EDITABLE_COLOR,isLockedSourcePoint,headCenter,resolveSourcePointerTarget} from './landmark-controls.mjs';
+import {LOCKED_COLOR,EDITABLE_COLOR,isFixedSourcePoint,isLockedSourcePoint,headCenter,resolveSourcePointerTarget} from './landmark-controls.mjs?v=20261010-p5';
 const $ = id=>document.getElementById(id);
 const state={gray:null,width:256,height:256,points:Array(5).fill(null),head:Array(2).fill(null),prepared:null,box:null,result:null,busy:false,job:0,modelReady:false};
 let worker,readyResolve,readyReject,readyPromise; const pending=new Map();
@@ -27,7 +27,7 @@ async function generate(tensors){
   const id=++state.job;const response=await new Promise((resolve,reject)=>{pending.set(id,{resolve,reject});worker.postMessage({type:'infer',id,image:tensors.image,mask:tensors.mask,geometry:tensors.geometry});});
   return response.prediction;
 }
-function invalidate(){state.result=null;$('download').disabled=true;$('parameters').disabled=true;$('result-state').textContent='';edited.getContext('2d').clearRect(0,0,edited.width,edited.height);$('diff-panel').hidden=true;status('');}
+function invalidate(){state.result=null;$('result-state').textContent='';edited.getContext('2d').clearRect(0,0,edited.width,edited.height);$('diff-panel').hidden=true;status('');}
 function coordinateTable(){
   $('coordinates').replaceChildren();
   for(let i=0;i<7;i++){
@@ -36,7 +36,7 @@ function coordinateTable(){
       const td=document.createElement('td'),input=document.createElement('input');input.type='number';input.step='0.1';input.setAttribute('aria-label',`${label.textContent} ${axis?'y':'x'}`);input.dataset.point=i;input.dataset.axis=axis;
       const point=i<5?state.points[i]:state.head[i-5];input.value=point?point[axis].toFixed(2):'';
       input.addEventListener('change',()=>{
-        if(state.busy||i<3){updateCoordinateInputs();return;}
+        if(state.busy||isFixedSourcePoint(i)){updateCoordinateInputs();return;}
         const n=Number(input.value);if(input.value===''||!Number.isFinite(n)||Math.abs(n)>10000)return;
         const collection=i<5?state.points:state.head,index=i<5?i:i-5;
         if(!collection[index])collection[index]=[0,0];collection[index][axis]=n;changed(false);
@@ -47,7 +47,7 @@ function coordinateTable(){
 function updateCoordinateInputs(){
   for(const input of $('coordinates').querySelectorAll('input')){
     const i=Number(input.dataset.point),a=Number(input.dataset.axis),p=i<5?state.points[i]:state.head[i-5];
-    input.value=p?p[a].toFixed(2):'';input.disabled=state.busy||!state.gray||i<3;
+    input.value=p?p[a].toFixed(2):'';input.disabled=state.busy||!state.gray||isFixedSourcePoint(i);
     input.closest('tr').classList.toggle('locked-point',isLockedSourcePoint(i,state.points));
   }
   const choice=$('point-choice');
@@ -122,13 +122,10 @@ $('clear-h').onclick=()=>{if(state.busy)return;state.head=Array(2).fill(null);$(
 $('choose-image').onclick=()=>{$('upload').click();};
 $('upload').onchange=async e=>{try{if(e.target.files[0])await setImage(e.target.files[0]);}catch(err){status(err.message,true);}};
 $('run').onclick=async()=>{
-  if(state.busy)return;try{prepare();if(!state.prepared)throw new Error('Five source landmarks are required.');state.busy=true;for(const input of document.querySelectorAll('input,select,button'))input.disabled=true;const start=performance.now();if(!state.prepared.same)await loadModel();status('Running…');state.result=await runPreparedEdit(state.prepared,generate);state.result.elapsed=(performance.now()-start)/1000;drawResult();$('result-state').textContent=`${state.width} × ${state.height}`;$('download').disabled=false;$('parameters').disabled=false;status(state.result.generatorCalls?`Done · ${state.result.elapsed.toFixed(2)} s`:'Unchanged');}
+  if(state.busy)return;try{prepare();if(!state.prepared)throw new Error('Five source landmarks are required.');state.busy=true;for(const input of document.querySelectorAll('input,select,button'))input.disabled=true;const start=performance.now();if(!state.prepared.same)await loadModel();status('Running…');state.result=await runPreparedEdit(state.prepared,generate);state.result.elapsed=(performance.now()-start)/1000;drawResult();$('result-state').textContent=`${state.width} × ${state.height}`;status(state.result.generatorCalls?`Done · ${state.result.elapsed.toFixed(2)} s`:'Unchanged');}
   catch(e){status(e.message,true);}
-  finally{state.busy=false;for(const input of document.querySelectorAll('input,select,button'))input.disabled=false;updateCoordinateInputs();$('beta').disabled=$('keep-beta').checked;$('run').disabled=!state.prepared;$('download').disabled=!state.result;$('parameters').disabled=!state.result;$('progress').hidden=true;}
+  finally{state.busy=false;for(const input of document.querySelectorAll('input,select,button'))input.disabled=false;updateCoordinateInputs();$('beta').disabled=$('keep-beta').checked;$('run').disabled=!state.prepared;$('progress').hidden=true;}
 };
-function downloadBlob(blob,name){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
-$('download').onclick=()=>{if(!state.result)return;const c=document.createElement('canvas');c.width=state.width;c.height=state.height;c.getContext('2d').putImageData(imageData(mergedResult(),state.width,state.height),0,0);c.toBlob(blob=>downloadBlob(blob,'edited-hip.png'),'image/png');};
-$('parameters').onclick=()=>{if(!state.result)return;const p=state.prepared,metadata={coordinateFrame:'sourcePoints, targetPoints and H are crop-local pixels; cropBox is in original-image pixels',originalImageSize:[state.width,state.height],sourcePoints:p.sourcePoints,targetPoints:p.targetPoints,sourceAngles:p.sourceAngles,targetAlpha:p.targetAlpha,targetBeta:p.targetBeta,H:state.head.every(Boolean)?state.head.map(v=>[v[0]-state.box[0],v[1]-state.box[1]]):null,headShift:$('head-shift').checked,headRefine:$('head-refine').checked,prescribedDelta:p.head?.delta??null,cropBox:state.box,generatorCalls:state.result.generatorCalls,modelSHA256:'af028a3ffb524b7c9dc90a93e9f21e59cb154d23749a8a34aa35d0990d8dce07',warning:'Requested geometry is not measured output anatomy. Research only.'};downloadBlob(new Blob([JSON.stringify(metadata,null,2)],{type:'application/json'}),'editing-parameters.json');};
 coordinateTable();
 updateCoordinateInputs();
 window.addEventListener('resize',()=>{drawSource();drawResult();});

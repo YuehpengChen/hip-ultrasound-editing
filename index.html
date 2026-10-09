@@ -37,7 +37,7 @@
       <div class="view-options"><label><input id="overlay" type="checkbox" checked> Show control points</label><span class="point-key"><i class="locked-swatch" aria-hidden="true"></i> Locked</span><span class="point-key"><i class="editable-swatch" aria-hidden="true"></i> Editable</span></div>
       <div id="status" class="status" role="status" aria-live="polite" hidden></div>
       <progress id="progress" max="1" value="0" hidden aria-label="Model download progress"></progress>
-      <div class="result-tools"><button id="download" disabled>Download image</button><button id="parameters" disabled>Download parameters</button><label><input id="diff-toggle" type="checkbox"> Show difference</label></div>
+      <div class="result-tools"><label><input id="diff-toggle" type="checkbox"> Show difference</label></div>
       <figure id="diff-panel" hidden class="diff"><figcaption>Absolute difference (0–0.35)</figcaption><canvas id="difference" width="256" height="256" aria-label="Difference image"></canvas></figure>
     </section>
     <aside class="controls" aria-label="Editing controls">
@@ -53,7 +53,7 @@
   </section>
   <section id="abstract" class="paper-section" aria-labelledby="abstract-heading">
     <h2 id="abstract-heading">Abstract</h2>
-    <p>Editing infant hip ultrasound images at requested roof angles could provide controlled examples for teaching Graf angle measurement and evaluating measurement algorithms. The technical challenge is to convert an angle request into visible image changes while retaining the surrounding tissue appearance. We introduce a local editing method that separates analytical landmark control from image synthesis. An angle solver converts the requested bony roof angle α and cartilage roof angle β into target landmarks while preserving the baseline and roof segment lengths. Distance-based landmark and line-segment maps encode the target geometry for a conditional generator, which also receives the source crop and a pixelwise edit mask. The predicted content is blended locally with the source image. An optional step translates source femoral head texture into the generated region, with reduced texture blending near the requested lines. To assess the contribution of the landmark and line maps, we compared generators trained with and without them on the same previously analyzed ultrasound images. A UNet++ line detector measured the angles in the edited images. The generator trained with these maps produced angles closer to the requested values than the generator trained without them. The method provides a basis for developing infant hip ultrasound image sets with controlled bony roof and cartilage roof angle variations for teaching and evaluating angle-measurement methods.</p>
+    <p>Editing infant hip ultrasound images across the bony roof angle ranges used in the Graf system could provide controlled examples for teaching angle measurement and evaluating measurement algorithms. The technical challenge is to convert an angle request into visible image changes while retaining the surrounding tissue appearance. We introduce a local editing method that separates analytical landmark control from image synthesis. An angle solver converts the requested bony roof angle α and cartilage roof angle β into target landmarks while preserving the baseline and roof segment lengths. Distance-based landmark and line-segment maps encode the target geometry for a conditional generator, which also receives the source crop and a pixelwise edit mask. The predicted content is blended locally with the source image. An optional step translates source femoral head texture into the generated region, with reduced texture blending near the requested lines. To assess the contribution of the landmark and line maps, we compared generators trained with and without them on the same previously analyzed ultrasound images. A UNet++ line detector measured the angles in the edited images. The generator trained with these maps produced angles closer to the requested values than the generator trained without them. The method provides a basis for developing infant hip ultrasound image sets with controlled bony roof and cartilage roof angle variations for teaching and evaluating angle-measurement methods.</p>
   </section>
   <section id="method" class="paper-section" aria-labelledby="method-heading">
     <h2 id="method-heading">Method</h2>
@@ -70,5 +70,5 @@
   </section>
 </main>
 <footer><p>No account, installation or dedicated GPU is required. Images are processed locally in your browser.</p><p>Research demonstration. Not for clinical use.</p></footer>
-<script type="module" src="app.mjs"></script>
+<script type="module" src="app.mjs?v=20261010-p5"></script>
 </body></html>
