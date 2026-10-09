@@ -4,11 +4,13 @@ Browser-only research demonstration for **Geometry-Controlled Editing of Infant 
 
 Authors: Yueh-Peng Chen, Tzuo-Yau Fan, Hsuan-Kai Kao.
 
+Deployment status: the inference implementation and three examples are public. The trained-model release upload is pending; the public Pages demo is not live yet. Genuine inference has been verified in a local browser.
+
 The app accepts a locally selected PNG/JPEG/WebP, five manually placed source landmarks and optional femoral-head diameter endpoints. It constructs requested geometry, runs the genuine fixed generator through ONNX Runtime Web, and performs the original mask/head/seam composites. There is no inference server and no image-upload API. Uploaded pixels stay in the browser.
 
 ## Included
 
-- Genuine FP32 inference weights, opset 17, 77,144,129 bytes.
+- Prepared genuine FP32 inference weights, opset 17, 77,144,129 bytes; public release upload pending.
 - Client-side inference and faithful geometric preprocessing/compositing.
 - Exactly three de-identified native 256 × 256 examples from the non-training test partition; no identifiers in filenames or metadata.
 - Editing controls, grayscale difference display, edited crop and parameter downloads.
