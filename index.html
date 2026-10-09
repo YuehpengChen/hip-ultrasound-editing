@@ -19,7 +19,7 @@
         <figure><figcaption><b>Source</b><span id="source-size"></span></figcaption><div class="canvas-wrap"><canvas id="source" width="256" height="256" aria-label="Source image" tabindex="0"></canvas></div></figure>
         <figure><figcaption><b>Edited</b><span id="result-state"></span></figcaption><div class="canvas-wrap"><canvas id="edited" width="256" height="256" aria-label="Edited image"></canvas></div></figure>
       </div>
-      <div class="view-options"><label><input id="overlay" type="checkbox" checked> Show control points</label></div>
+      <div class="view-options"><label><input id="overlay" type="checkbox" checked> Show control points</label><span class="point-key"><i class="locked-swatch" aria-hidden="true"></i> Locked</span><span class="point-key"><i class="editable-swatch" aria-hidden="true"></i> Editable</span></div>
       <div id="status" class="status" role="status" aria-live="polite" hidden></div>
       <progress id="progress" max="1" value="0" hidden aria-label="Model download progress"></progress>
       <div class="result-tools"><button id="download" disabled>Download image</button><button id="parameters" disabled>Download parameters</button><label><input id="diff-toggle" type="checkbox"> Show difference</label></div>

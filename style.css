@@ -16,6 +16,11 @@ figcaption{display:flex;justify-content:space-between;gap:8px;margin-bottom:6px}
 canvas{display:block;width:100%;height:auto;touch-action:none}
 #source{cursor:crosshair}
 .view-options,.result-tools{margin-top:12px}
+.point-key{display:inline-flex;align-items:center;gap:5px;margin-left:6px;font-size:12px}
+.point-key i{width:7px;height:7px;border:1px solid #111;border-radius:50%}
+.locked-swatch{background:#f1b64a}
+.editable-swatch{background:#42b5e5}
+.locked-point td:first-child{color:#805711}
 .status{margin-top:12px}
 .status.error{color:#a00}
 progress{width:100%;margin-top:8px}

@@ -8,6 +8,7 @@ on:
       - index.html
       - style.css
       - app.mjs
+      - landmark-controls.mjs
       - geometry.mjs
       - model-worker.mjs
       - samples/**
@@ -31,7 +32,7 @@ jobs:
           MODEL_URL: https://github.com/YuehpengChen/hip-ultrasound-editing/releases/download/v0.1.0-browser/angleviz_v4_fp32.onnx
         run: |
           mkdir -p _site/models _site/samples
-          cp index.html style.css app.mjs geometry.mjs model-worker.mjs .nojekyll _site/
+          cp index.html style.css app.mjs landmark-controls.mjs geometry.mjs model-worker.mjs .nojekyll _site/
           cp samples/sample-1.png samples/sample-2.png samples/sample-3.png samples/samples.json _site/samples/
           curl --fail --location --retry 3 "$MODEL_URL" --output _site/models/angleviz_v4_fp32.onnx
           echo 'af028a3ffb524b7c9dc90a93e9f21e59cb154d23749a8a34aa35d0990d8dce07  _site/models/angleviz_v4_fp32.onnx' | sha256sum --check
