@@ -9,7 +9,7 @@ async function initialize(url) {
   if (loading) return loading;
   loading = (async () => {
     const response = await fetch(url);
-    if (!response.ok) throw new Error(`模型下載失敗：HTTP ${response.status}`);
+    if (!response.ok) throw new Error(`Model download failed: HTTP ${response.status}`);
     const total = Number(response.headers.get('content-length')) || 77144129;
     const reader = response.body.getReader(), chunks = []; let received = 0;
     while (true) {
@@ -20,7 +20,7 @@ async function initialize(url) {
     const bytes = new Uint8Array(received); let offset = 0;
     for (const c of chunks) { bytes.set(c, offset); offset += c.length; }
     const hash = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))).map(v=>v.toString(16).padStart(2,'0')).join('');
-    if (hash !== expectedHash) throw new Error('模型雜湊不符；已停止推論。');
+    if (hash !== expectedHash) throw new Error('Model checksum mismatch.');
     postMessage({type:'initializing'});
     session = await ort.InferenceSession.create(bytes, {executionProviders:['wasm'], graphOptimizationLevel:'all'});
     postMessage({type:'ready', backend:'WASM CPU', hash}); return session;
@@ -31,7 +31,7 @@ self.onmessage = async ({data}) => {
   try {
     if (data.type === 'load') { await initialize(data.url); return; }
     if (data.type !== 'infer') return;
-    if (!session) throw new Error('模型尚未載入。');
+    if (!session) throw new Error('Model is not loaded.');
     const start = performance.now();
     const outputs = await session.run({
       original:new ort.Tensor('float32',data.image,[1,1,256,256]),
