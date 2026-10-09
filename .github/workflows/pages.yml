@@ -1,0 +1,45 @@
+name: Deploy browser inference demo
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/configure-pages@v5
+      - name: Assemble only approved public inference assets
+        env:
+          MODEL_URL: https://github.com/YuehpengChen/hip-ultrasound-editing/releases/download/v0.1.0-browser/angleviz_v4_fp32.onnx
+        run: |
+          mkdir -p _site/models _site/samples
+          cp index.html style.css app.mjs geometry.mjs model-worker.mjs .nojekyll _site/
+          cp samples/sample-1.png samples/sample-2.png samples/sample-3.png samples/samples.json _site/samples/
+          curl --fail --location --retry 3 "$MODEL_URL" --output _site/models/angleviz_v4_fp32.onnx
+          echo 'af028a3ffb524b7c9dc90a93e9f21e59cb154d23749a8a34aa35d0990d8dce07  _site/models/angleviz_v4_fp32.onnx' | sha256sum --check
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Publish GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

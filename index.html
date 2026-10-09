@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Client-side geometry-controlled infant hip ultrasound editing research demonstration.">
+  <title>Hip ultrasound editing · Research demo</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header><div><span class="eyebrow">RESEARCH DEMONSTRATION</span><h1>Geometry-controlled hip ultrasound editing</h1></div><a href="https://github.com/YuehpengChen/hip-ultrasound-editing" target="_blank" rel="noopener">GitHub ↗</a></header>
+<main>
+  <section class="import-bar" aria-label="載入影像">
+    <label class="upload" for="upload">上傳影像<input id="upload" type="file" accept="image/png,image/jpeg,image/webp"></label>
+    <span>或試用：</span><div id="examples" class="examples"></div>
+    <span class="privacy">影像只在此瀏覽器處理，不上傳伺服器</span>
+  </section>
+  <div class="layout">
+    <section class="workspace" aria-label="影像編輯工作區">
+      <div class="image-grid">
+        <figure><figcaption><b>原圖／Source</b><span id="source-size">尚未載入</span></figcaption><div class="canvas-wrap"><canvas id="source" width="256" height="256" aria-label="原圖標註畫布" tabindex="0"></canvas><p id="source-empty" class="empty">上傳影像，或選擇三張範例之一</p></div></figure>
+        <figure><figcaption><b>編輯圖／Edited</b><span id="result-state">尚未執行</span></figcaption><div class="canvas-wrap"><canvas id="edited" width="256" height="256" aria-label="模型編輯結果"></canvas><p id="edited-empty" class="empty">設定目標角度後執行模型</p></div></figure>
+      </div>
+      <div class="view-options"><label><input id="overlay" type="checkbox" checked> 顯示控制點</label><span>● 原始點　○ 目標點（非輸出測量）</span><span id="crop-info"></span></div>
+      <div id="status" class="status" role="status" aria-live="polite">選擇一張影像開始。範例已包含人工控制點；新上傳影像需自行標註。</div>
+      <progress id="progress" max="1" value="0" hidden aria-label="模型下載進度"></progress>
+      <div class="result-tools"><button id="download" disabled>下載編輯裁切圖</button><button id="parameters" disabled>下載操作參數</button><label><input id="diff-toggle" type="checkbox"> 顯示差異圖</label></div>
+      <figure id="diff-panel" hidden class="diff"><figcaption>絕對灰階差異／Absolute difference（0–0.35）</figcaption><canvas id="difference" width="256" height="256"></canvas><p>強度差異不等於解剖正確性或角度準確度。</p></figure>
+      <details><summary>使用方式與限制</summary><ol><li>上傳 PNG、JPEG 或 WebP，至少 256×256 像素。不縮放模型輸入。</li><li>標註 p1–p5；p1、p2 定義基準線，p3、p4 定義骨性頂，p4、p5 定義軟骨性頂。</li><li>可標註 H 的兩個直徑端點。若不提供 H，頭部平移與邊界修復自動停用。</li><li>輸入目標 α，預設保持 β。執行後會下載並在瀏覽器內運行模型；首次約下載 77 MB。</li><li>數值欄位可輸入裁切外的基準線端點。控制點、f* 和 δ 都是操作要求，並非輸出影像的重新量測。</li></ol><p>模型原生輸入為 256×256，依 p3–p5 的中心擷取原尺寸影像；裁切外像素保持不變。此模型不提供自動控制點偵測。</p><p>生成影像僅供研究展示，未經獨立臨床驗證，不可用於診斷、治療或臨床 Graf 分類。不同角度請求的解剖合理性及教育效益仍需驗證。</p><p>網站沒有影像上傳 API、分析追蹤器或影像雲端儲存。模型與推論程式由 GitHub 提供；ONNX Runtime 由固定版本的公開 CDN 提供。</p></details>
+    </section>
+    <aside class="controls" aria-label="編輯操作">
+      <h2>操作／Controls</h2><p class="source-angles" id="source-angles">原始 α —　β —</p>
+      <label class="field">目標 α*（°）<input id="alpha" type="number" min="30" max="84" step="0.1" value="60"></label>
+      <label class="check"><input id="keep-beta" type="checkbox" checked> 保持原始 β</label>
+      <label class="field">目標 β*（°）<input id="beta" type="number" min="0.1" max="89.9" step="0.1" value="60" disabled></label>
+      <div class="operation"><label class="check"><input id="head-shift" type="checkbox" checked> H：股骨頭紋理平移</label><label class="check"><input id="head-refine" type="checkbox" checked> 股骨頭邊界修復</label><p id="delta">δ —（需要 H）</p></div>
+      <button id="run" class="primary" disabled>執行瀏覽器模型</button><p class="small">模型在本機瀏覽器的背景執行緒運算。初次載入较慢，之後重用同一模型。</p>
+      <details open class="annotations"><summary>標註與座標</summary><label class="field">畫布點選目標<select id="point-choice"><option value="0">p1 · 基準線端點 1</option><option value="1">p2 · 基準線端點 2</option><option value="2">p3 · 髂骨下緣</option><option value="3">p4 · 骨緣</option><option value="4">p5 · 唇中心</option><option value="5">H1 · 頭部直徑端點</option><option value="6">H2 · 頭部直徑端點</option></select></label><table><thead><tr><th>點</th><th>x（px）</th><th>y（px）</th></tr></thead><tbody id="coordinates"></tbody></table><div class="secondary-actions"><button id="clear-h">移除 H</button><button id="reset-points">重設標註</button></div><p class="small">點選原圖或拖動既有點；也可直接改數值。座標原點在左上方，x 向右、y 向下。</p></details>
+    </aside>
+  </div>
+</main>
+<footer><p>Yueh-Peng Chen · Tzuo-Yau Fan · Hsuan-Kai Kao</p><p>Geometry-Controlled Editing of Infant Hip Ultrasound · Research demonstration</p><p><a href="https://doi.org/10.1016/j.bj.2023.100614">原始資料研究／Source-dataset publication</a> · 公開推論權重與三張非訓練影像；不提供訓練程式或訓練資料。</p></footer>
+<script type="module" src="app.mjs"></script>
+</body></html>
