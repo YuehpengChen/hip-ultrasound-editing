@@ -1,7 +1,22 @@
 *{box-sizing:border-box}
-body{margin:16px;background:white;color:black;font:14px/1.4 Arial,sans-serif}
-header{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:16px}
-h1{font-size:20px;font-weight:normal;margin:0}
+body{margin:16px auto;padding:0 16px;max-width:1440px;background:white;color:black;font:14px/1.4 Arial,sans-serif}
+.paper-header{text-align:center;margin:0 0 22px}
+h1{font-size:26px;line-height:1.2;font-weight:normal;margin:0 0 10px}
+.authors{font-size:15px;margin:0 0 8px}
+sup{font-size:.7em;margin-left:2px}
+.affiliations{font-size:12px;margin:0 auto 12px;max-width:900px}
+.affiliations summary{display:inline-block}
+.affiliations p{margin:4px 0}
+nav{display:flex;justify-content:center;flex-wrap:wrap;gap:8px 18px}
+a{color:#222;text-underline-offset:3px}
+.paper-section{max-width:1040px;margin:30px auto 0;scroll-margin-top:12px}
+.paper-section p{line-height:1.6;margin:0}
+.demo-section{scroll-margin-top:12px}
+.method-figure img{display:block;width:100%;height:auto}
+.method-figure figcaption{font-size:12px;margin-top:8px}
+pre{font:12px/1.5 monospace;white-space:pre-wrap;overflow-wrap:anywhere;margin:0}
+footer{max-width:1040px;margin:26px auto 16px;font-size:12px;color:#444}
+footer p{margin:4px 0}
 h2{font-size:16px;margin:0 0 10px}
 button,input,select{font:inherit}
 button{cursor:pointer}
@@ -37,4 +52,4 @@ th{text-align:left;font-weight:normal}
 td,th{padding:3px}
 td input{width:100%;min-width:0}
 [hidden]{display:none!important}
-@media(max-width:760px){body{margin:10px}.layout{display:flex;flex-direction:column}.controls{order:-1;display:grid;grid-template-columns:1fr 1fr;gap:0 12px}.controls h2,.source-angles,.operation,#run,.annotations,.controls>.check{grid-column:1/-1}.image-grid{gap:8px}figcaption{display:block}figcaption span{display:block;font-size:12px}.diff{width:100%}}
+@media(max-width:760px){body{margin:10px auto;padding:0 10px}h1{font-size:22px}.layout{display:flex;flex-direction:column}.controls{order:-1;display:grid;grid-template-columns:1fr 1fr;gap:0 12px}.controls h2,.source-angles,.operation,#run,.annotations,.controls>.check{grid-column:1/-1}.image-grid{gap:8px}figcaption{display:block}figcaption span{display:block;font-size:12px}.diff{width:100%}.paper-section{margin-top:24px}}

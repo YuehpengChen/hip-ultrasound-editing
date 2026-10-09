@@ -11,6 +11,8 @@ on:
       - landmark-controls.mjs
       - geometry.mjs
       - model-worker.mjs
+      - runtime/**
+      - assets/method-overview.png
       - samples/**
       - .github/workflows/pages.yml
 
@@ -31,9 +33,20 @@ jobs:
         env:
           MODEL_URL: https://github.com/YuehpengChen/hip-ultrasound-editing/releases/download/v0.1.0-browser/angleviz_v4_fp32.onnx
         run: |
-          mkdir -p _site/models _site/samples
+          mkdir -p _site/models _site/samples _site/runtime _site/assets
           cp index.html style.css app.mjs landmark-controls.mjs geometry.mjs model-worker.mjs .nojekyll _site/
           cp samples/sample-1.png samples/sample-2.png samples/sample-3.png samples/samples.json _site/samples/
+          curl --fail --location --retry 3 https://registry.npmjs.org/onnxruntime-web/-/onnxruntime-web-1.23.2.tgz --output "$RUNNER_TEMP/onnxruntime-web-1.23.2.tgz"
+          echo "0b8707d7efab9a2bea63564d66cad79e897cfd0bd627e5ae000488ffc1c45c7d  $RUNNER_TEMP/onnxruntime-web-1.23.2.tgz" | sha256sum --check
+          tar -xzf "$RUNNER_TEMP/onnxruntime-web-1.23.2.tgz" --strip-components=2 -C _site/runtime package/dist/ort.wasm.min.mjs package/dist/ort-wasm-simd-threaded.mjs package/dist/ort-wasm-simd-threaded.wasm
+          curl --fail --location --retry 3 https://raw.githubusercontent.com/microsoft/onnxruntime/v1.23.2/LICENSE --output _site/runtime/LICENSE
+          curl --fail --location --retry 3 https://raw.githubusercontent.com/microsoft/onnxruntime/v1.23.2/ThirdPartyNotices.txt --output _site/runtime/ThirdPartyNotices.txt
+          echo '69751720f611e37d1ce2fa3c6ebaa80f949014752636c5f8887a63d40feadcc7  _site/runtime/ort.wasm.min.mjs' | sha256sum --check
+          echo '90a557d15c02bac4504d95b67f431d8594635ed2a0a62a7f2cd83d090ff91d3e  _site/runtime/ort-wasm-simd-threaded.mjs' | sha256sum --check
+          echo '45eaee27761ad883742a8d4b8fce1538d60ce43b51adf1726fafccc59b8c1a15  _site/runtime/ort-wasm-simd-threaded.wasm' | sha256sum --check
+          echo '2f07c72751aed99790b8a4869cf2311df85a860b22ded05fa22803587a48922c  _site/runtime/LICENSE' | sha256sum --check
+          echo 'e9e90971a8e75a9a8ac0c6412e29c1202d079998389915aa485f46c816c3b4cc  _site/runtime/ThirdPartyNotices.txt' | sha256sum --check
+          cp assets/method-overview.png _site/assets/
           curl --fail --location --retry 3 "$MODEL_URL" --output _site/models/angleviz_v4_fp32.onnx
           echo 'af028a3ffb524b7c9dc90a93e9f21e59cb154d23749a8a34aa35d0990d8dce07  _site/models/angleviz_v4_fp32.onnx' | sha256sum --check
       - uses: actions/upload-pages-artifact@v4

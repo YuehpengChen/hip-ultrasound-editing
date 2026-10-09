@@ -1,7 +1,7 @@
-import * as ort from 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.23.2/dist/ort.all.min.mjs';
+import * as ort from './runtime/ort.wasm.min.mjs';
 ort.env.wasm.numThreads = 1;
 ort.env.wasm.proxy = false;
-ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.23.2/dist/';
+ort.env.wasm.wasmPaths = new URL('./runtime/',import.meta.url).href;
 let session, loading;
 const expectedHash = 'af028a3ffb524b7c9dc90a93e9f21e59cb154d23749a8a34aa35d0990d8dce07';
 async function initialize(url) {

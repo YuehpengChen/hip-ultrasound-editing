@@ -3,3 +3,8 @@ qa.html
 qa/
 private/
 *.log
+runtime/ort.wasm.min.mjs
+runtime/ort-wasm-simd-threaded.mjs
+runtime/ort-wasm-simd-threaded.wasm
+runtime/LICENSE
+runtime/ThirdPartyNotices.txt

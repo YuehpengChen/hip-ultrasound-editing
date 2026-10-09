@@ -3,12 +3,27 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Client-side geometry-controlled infant hip ultrasound editing research demonstration.">
-  <title>Hip ultrasound editing</title>
+  <title>Geometry-Controlled Editing of Infant Hip Ultrasound</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header><h1>Hip ultrasound editing</h1><a href="https://github.com/YuehpengChen/hip-ultrasound-editing" target="_blank" rel="noopener">GitHub</a></header>
+<header class="paper-header">
+  <h1>Geometry-Controlled Editing of Infant Hip Ultrasound</h1>
+  <p class="authors">Yueh-Peng Chen<sup>a,b</sup> · Tzuo-Yau Fan<sup>a,c</sup> · Hsuan-Kai Kao<sup>d,e,f</sup></p>
+  <details class="affiliations"><summary>Affiliations</summary>
+    <p><sup>a</sup> Center for Artificial Intelligence in Medicine, Chang Gung Memorial Hospital at Linkou</p>
+    <p><sup>b</sup> Master of Science Degree Program in Innovation for Smart Medicine, Chang Gung University</p>
+    <p><sup>c</sup> Department of Artificial Intelligence Research and Development, Chang Gung Medical Technology Co., Ltd.</p>
+    <p><sup>d</sup> Department of Orthopedic Surgery, Chang Gung Memorial Hospital at Linkou</p>
+    <p><sup>e</sup> Bone and Joint Research Center, Chang Gung Memorial Hospital at Linkou</p>
+    <p><sup>f</sup> College of Medicine, Chang Gung University</p>
+    <p>Taoyuan, Taiwan. Corresponding author: Hsuan-Kai Kao.</p>
+  </details>
+  <nav aria-label="Paper sections"><a href="#demo">Interactive demo</a><a href="#abstract">Abstract</a><a href="#method">Method</a><a href="#citation">Citation</a><a href="https://github.com/YuehpengChen/hip-ultrasound-editing/releases/tag/v0.1.0-browser" target="_blank" rel="noopener">Model</a><a href="https://github.com/YuehpengChen/hip-ultrasound-editing" target="_blank" rel="noopener">GitHub</a></nav>
+</header>
 <main>
+  <section id="demo" class="demo-section" aria-labelledby="demo-heading">
+  <h2 id="demo-heading">Interactive demo</h2>
   <section class="import-bar" aria-label="Load image">
     <button id="choose-image" type="button">Upload image</button><input id="upload" type="file" accept="image/png,image/jpeg,image/webp" hidden>
     <div id="examples" class="examples"></div>
@@ -35,6 +50,25 @@
       <details class="annotations"><summary>Landmarks</summary><label class="field">Select point<select id="point-choice"><option value="0">p1 · Baseline endpoint 1</option><option value="1">p2 · Baseline endpoint 2</option><option value="2">p3 · Lower iliac limb</option><option value="3">p4 · Bony rim</option><option value="4">p5 · Labrum centre</option><option value="5">H1 · Head diameter endpoint 1</option><option value="6">H2 · Head diameter endpoint 2</option></select></label><table><thead><tr><th>Point</th><th>x (px)</th><th>y (px)</th></tr></thead><tbody id="coordinates"></tbody></table><div class="secondary-actions"><button id="clear-h">Remove H</button><button id="reset-points">Clear points</button></div></details>
     </aside>
   </div>
+  </section>
+  <section id="abstract" class="paper-section" aria-labelledby="abstract-heading">
+    <h2 id="abstract-heading">Abstract</h2>
+    <p>Editing infant hip ultrasound images at requested roof angles could provide controlled examples for teaching Graf angle measurement and evaluating measurement algorithms. The technical challenge is to convert an angle request into visible image changes while retaining the surrounding tissue appearance. We introduce a local editing method that separates analytical landmark control from image synthesis. An angle solver converts the requested bony roof angle α and cartilage roof angle β into target landmarks while preserving the baseline and roof segment lengths. Distance-based landmark and line-segment maps encode the target geometry for a conditional generator, which also receives the source crop and a pixelwise edit mask. The predicted content is blended locally with the source image. An optional step translates source femoral head texture into the generated region, with reduced texture blending near the requested lines. To assess the contribution of the landmark and line maps, we compared generators trained with and without them on the same previously analyzed ultrasound images. A UNet++ line detector measured the angles in the edited images. The generator trained with these maps produced angles closer to the requested values than the generator trained without them. The method provides a basis for developing infant hip ultrasound image sets with controlled bony roof and cartilage roof angle variations for teaching and evaluating angle-measurement methods.</p>
+  </section>
+  <section id="method" class="paper-section" aria-labelledby="method-heading">
+    <h2 id="method-heading">Method</h2>
+    <figure class="method-figure"><img src="assets/method-overview.png" width="1875" height="394" loading="lazy" alt="Conceptual workflow from a source hip image through a target angle request to a locally generated hip image."><figcaption>Conceptual workflow for setting a target angle and generating a locally edited hip ultrasound image.</figcaption></figure>
+  </section>
+  <section id="citation" class="paper-section" aria-labelledby="citation-heading">
+    <h2 id="citation-heading">Citation</h2>
+    <pre>@misc{chen_hip_ultrasound_editing,
+  author = {Chen, Yueh-Peng and Fan, Tzuo-Yau and Kao, Hsuan-Kai},
+  title = {Geometry-Controlled Editing of Infant Hip Ultrasound},
+  howpublished = {Research demonstration},
+  url = {https://yuehpengchen.github.io/hip-ultrasound-editing/}
+}</pre>
+  </section>
 </main>
+<footer><p>No account, installation or dedicated GPU is required. Images are processed locally in your browser.</p><p>Research demonstration. Not for clinical use.</p></footer>
 <script type="module" src="app.mjs"></script>
 </body></html>
