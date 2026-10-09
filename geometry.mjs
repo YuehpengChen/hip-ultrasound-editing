@@ -289,10 +289,12 @@ function prepareHeadLayers(original, width, height, targetPoints, sourceCenter, 
 /**
  * Input image is already a native 256 × 256 grayscale crop. By default pixels
  * are [0,255]; normalized=true accepts [0,1]. Do not supply a zeroed/masked image.
- * H is optional and supplied as two diameter endpoints in this same crop.
+ * H is optional and supplied as two source diameter endpoints in this crop.
+ * targetHeadCenter optionally prescribes f* without changing source f/radius.
+ * Omitting it preserves the paper's angle-derived target and original numerics.
  */
 export function prepareEdit({ image, points, targetAlpha, targetBeta = null,
-  headEndpoints = null, headShift = true, headRefine = true, headScale = 0.9,
+  headEndpoints = null, targetHeadCenter = null, headShift = true, headRefine = true, headScale = 0.9,
   width = 256, height = 256, normalized = false, geometryChannels = 8 }) {
   if (width !== 256 || height !== 256) throw new RangeError('This exported model requires a native 256 × 256 crop.');
   validatePoints(points);
@@ -301,10 +303,18 @@ export function prepareEdit({ image, points, targetAlpha, targetBeta = null,
   if (original.some(v => !Number.isFinite(v) || v < 0 || v > 1)) throw new RangeError('Invalid grayscale pixel range.');
   const sourceAngles = grafAngles(points);
   if (targetBeta === null) targetBeta = sourceAngles.beta;
-  const same = Math.abs(targetAlpha - sourceAngles.alpha) < 1e-3 && Math.abs(targetBeta - sourceAngles.beta) < 1e-3;
-  const targetPoints = same ? copyPoints(points) : solveTargetKeypoints(points, targetAlpha, targetBeta);
+  const sameAngles = Math.abs(targetAlpha - sourceAngles.alpha) < 1e-3 && Math.abs(targetBeta - sourceAngles.beta) < 1e-3;
+  const targetPoints = sameAngles ? copyPoints(points) : solveTargetKeypoints(points, targetAlpha, targetBeta);
   const head = headFromEndpoints(headEndpoints), sourceCenter = head?.center ?? null, radius = head?.radius ?? 0;
-  const targetCenter = solveTargetHead(points, sourceCenter, targetAlpha);
+  if (targetHeadCenter !== null && (!Array.isArray(targetHeadCenter) || targetHeadCenter.length !== 2 || !targetHeadCenter.every(Number.isFinite))) {
+    throw new TypeError('Target f* must be a finite [x, y] point.');
+  }
+  if (targetHeadCenter !== null && (!head || radius <= 0)) {
+    throw new RangeError('Target f* requires two distinct source H endpoints.');
+  }
+  const manualTarget = headShift && targetHeadCenter !== null;
+  const targetCenter = manualTarget ? targetHeadCenter.slice() : solveTargetHead(points, sourceCenter, targetAlpha);
+  const same = sameAngles && !(manualTarget && Math.hypot(...sub(targetCenter, sourceCenter)) >= 1e-3);
   const geometry = geometryCondition(width, height, targetPoints, targetCenter, radius, geometryChannels);
   // Canonical infer uses both source/solved H discs even with headShift disabled.
   const mask = hipMask(width, height, points, [0, 0], [targetPoints],

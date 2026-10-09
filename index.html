@@ -45,7 +45,7 @@
       <label class="field">Target α* (°)<input id="alpha" type="number" min="30" max="84" step="0.1" value="60"></label>
       <label class="check"><input id="keep-beta" type="checkbox" checked> Keep source β</label>
       <label class="field">Target β* (°)<input id="beta" type="number" min="0.1" max="89.9" step="0.1" value="60" disabled></label>
-      <div class="operation"><label class="check"><input id="head-shift" type="checkbox" checked> H: Femoral-head translation</label><label class="check"><input id="head-refine" type="checkbox" checked> Boundary refinement</label><p id="delta">δ —</p></div>
+      <div class="operation"><label class="check"><input id="head-shift" type="checkbox" checked> H: Femoral-head translation</label><label class="check"><input id="head-refine" type="checkbox" checked> Boundary refinement</label><label class="field">H endpoints<select id="head-controls"><option value="source">Source H</option><option value="target">Target H*</option></select></label><button id="reset-head-target" type="button" disabled>Reset target H</button><p id="delta">δ —</p></div>
       <button id="run" disabled>Run</button>
       <details class="annotations"><summary>Landmarks</summary><label class="field">Select point<select id="point-choice"><option value="0">p1 · Baseline endpoint 1</option><option value="1">p2 · Baseline endpoint 2</option><option value="2">p3 · Lower iliac limb</option><option value="3">p4 · Bony rim</option><option value="4">p5 · Labrum centre</option><option value="5">H1 · Head diameter endpoint 1</option><option value="6">H2 · Head diameter endpoint 2</option></select></label><table><thead><tr><th>Point</th><th>x (px)</th><th>y (px)</th></tr></thead><tbody id="coordinates"></tbody></table><div class="secondary-actions"><button id="clear-h">Remove H</button><button id="reset-points">Clear points</button></div></details>
     </aside>
@@ -70,5 +70,5 @@
   </section>
 </main>
 <footer><p>No account, installation or dedicated GPU is required. Images are processed locally in your browser.</p><p>Research demonstration. Not for clinical use.</p></footer>
-<script type="module" src="app.mjs?v=20261010-p5"></script>
+<script type="module" src="app.mjs?v=20261010-head-target"></script>
 </body></html>
