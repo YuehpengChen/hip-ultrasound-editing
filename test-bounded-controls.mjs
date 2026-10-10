@@ -24,7 +24,7 @@ function assertCrop(initial, point, message) {
 
 function assertCanonical(initial, result, message) {
   assertRange(initial, result.points[3], initial.rangeP4, `${message}: p4`);
-  assertCrop(initial, result.points[4], `${message}: p5`);
+  assertRange(initial, result.points[4], initial.rangeP5, `${message}: p5`);
   equal(result.points.slice(0, 3), initial.points.slice(0, 3), `${message}: baseline and p3 preserved`);
   near(distance(result.points[3], result.points[2]), distance(initial.points[3], initial.points[2]), `${message}: bony roof length`);
   near(distance(result.points[4], result.points[3]), distance(initial.points[4], initial.points[3]), `${message}: cartilage roof length`);
@@ -42,13 +42,15 @@ for (const sample of samples) {
   equal({points, head}, before, `${sample.id}: capture leaves callers unchanged`);
   for (const value of [initial, initial.points, ...initial.points, initial.headEndpoints,
     ...initial.headEndpoints, initial.box, initial.angles, initial.rangeP4, initial.rangeP4.center,
+    initial.rangeP5, initial.rangeP5.center,
     initial.rangeHead, initial.rangeHead.center]) ok(Object.isFrozen(value), `${sample.id}: deeply frozen`);
   points[4][0] += 500; head[0][0] -= 500;
   equal(initial.points, before.points, `${sample.id}: points snapshot independent`);
   equal(initial.headEndpoints, before.head, `${sample.id}: source H snapshot independent`);
   equal(initial.rangeP4.center, before.points[3], `${sample.id}: blue circle is centered at initial p4`);
   near(initial.rangeP4.radius, 0.8 * distance(before.points[3], before.points[4]), `${sample.id}: blue radius reduced by 20 percent`);
-  ok(!Object.hasOwn(initial, 'rangeP5'), `${sample.id}: no p5-centered circle remains`);
+  equal(initial.rangeP5.center, before.points[4], `${sample.id}: independent p5 circle uses initial p5`);
+  near(initial.rangeP5.radius, initial.rangeP4.radius, `${sample.id}: p5 circle uses the same initial segment-based radius`);
   const previousHeadRange = Math.min(initial.headRadius * 0.5,
     initial.f[0] - initial.box[0], initial.box[2] - 1 - initial.f[0],
     initial.f[1] - initial.box[1], initial.box[3] - 1 - initial.f[1]);
@@ -80,6 +82,20 @@ for (const sample of samples) {
   const betaPointer = anglesForPointer(initial, 4, betaOnly.points[4], initial.angles.alpha, initial.angles.beta);
   near(betaPointer.alpha, initial.angles.alpha, `${sample.id}: feasible p5 pointer preserves alpha`);
   for (let axis = 0; axis < 2; axis++) near(betaPointer.points[3][axis], initial.points[3][axis], `${sample.id}: p5 pointer preserves p4 axis ${axis}`);
+
+  // Some targets are inside the crop but outside the new p5-centered circle.
+  // Both numerical beta inputs and the legacy angle pointer must obey it.
+  for (const requestedBeta of [0.1, 89.9]) {
+    const raw = solveTargetKeypoints(initial.points, initial.angles.alpha, requestedBeta);
+    if (distance(raw[4], initial.rangeP5.center) <= initial.rangeP5.radius) continue;
+    const numeric = targetPointsForRequest(initial, initial.angles.alpha, requestedBeta);
+    ok(numeric.limited, `${sample.id}: numerical beta beyond p5 circle is limited`);
+    near(numeric.alpha, initial.angles.alpha, `${sample.id}: p5-circle beta fallback preserves feasible alpha`);
+    assertRange(initial, numeric.points[4], initial.rangeP5, `${sample.id}: numerical p5 range`);
+    const pointer = anglesForPointer(initial, 4, raw[4], initial.angles.alpha, initial.angles.beta);
+    ok(pointer.limited, `${sample.id}: legacy angle pointer beyond p5 circle is limited`);
+    assertRange(initial, pointer.points[4], initial.rangeP5, `${sample.id}: legacy pointer p5 range`);
+  }
 
   for (const alpha of [30, 35, initial.angles.alpha, 60, 75, 84, -100, 300]) {
     for (const beta of [0.1, 20, initial.angles.beta, 89.9, -100, 300]) {
@@ -155,7 +171,7 @@ for (const sample of samples) {
   const sample = samples[0], initial = captureInitialGeometry(sample.points, null, sample.width, sample.height);
   equal(initial.rangeHead, null, 'H absent has no head range');
   equal(initial.f, null, 'H absent has no source f');
-  assertCanonical(initial, targetPointsForRequest(initial, 70, 45), 'H absent still supports bounded p4 and crop-bound p5');
+  assertCanonical(initial, targetPointsForRequest(initial, 70, 45), 'H absent still supports bounded p4 and p5');
   for (const fn of [boundTargetCenter, headHandlesAtCenter]) {
     assert.throws(() => fn(initial, [100, 100]), RangeError, 'H absent cannot invent target f*'); assertions++;
   }

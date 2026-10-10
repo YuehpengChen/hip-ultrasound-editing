@@ -1,4 +1,4 @@
-import {cropBox, grafAngles, headFromEndpoints, solveTargetKeypoints} from './geometry.mjs';
+import {cropBox, grafAngles, headFromEndpoints, solveTargetKeypoints, validateTargetPoints} from './geometry.mjs';
 import {targetHeadEndpoints} from './head-controls.mjs';
 
 // These are software interaction limits, not clinically validated ranges.
@@ -25,6 +25,11 @@ function insideBox(point, box) {
 function insideP4Range(initial, point) {
   return insideBox(point, initial.box) &&
     distance(point, initial.rangeP4.center) <= initial.rangeP4.radius + EPSILON;
+}
+
+function insideP5Range(initial, point) {
+  return insideBox(point, initial.box) &&
+    distance(point, initial.rangeP5.center) <= initial.rangeP5.radius + EPSILON;
 }
 
 /** Capture source annotation once; no mutable target or image output is stored. */
@@ -56,6 +61,7 @@ export function captureInitialGeometry(points, headEndpoints = null, width = 256
     width, height, box, angles, sourceAngles: angles,
     sourceCenter, f: sourceCenter, headRadius: radius, radius,
     rangeP4: {center: sourcePoints[3].slice(), radius: 0.8 * distance(sourcePoints[3], sourcePoints[4]), box: box.slice()},
+    rangeP5: {center: sourcePoints[4].slice(), radius: 0.8 * distance(sourcePoints[3], sourcePoints[4]), box: box.slice()},
     rangeHead: sourceCenter ? {center: sourceCenter.slice(), radius: headRangeRadius, box: box.slice()} : null,
   });
 }
@@ -95,10 +101,10 @@ function nearestFeasibleBeta(initial, alpha, beta) {
   const requested = solved(initial, alpha, beta);
   // p4 depends only on alpha. Skip its infeasible angles before a beta scan.
   if (!insideP4Range(initial, requested[3])) return null;
-  if (insideBox(requested[4], initial.box)) return {points: requested, alpha, beta};
+  if (insideP5Range(initial, requested[4])) return {points: requested, alpha, beta};
   for (const candidate of angleCandidates(BETA_MIN, BETA_MAX, beta, initial.angles.beta)) {
     const points = solved(initial, alpha, candidate);
-    if (insideBox(points[4], initial.box)) return {points, alpha, beta: candidate};
+    if (insideP5Range(initial, points[4])) return {points, alpha, beta: candidate};
   }
   return null;
 }
@@ -109,7 +115,7 @@ function validateRequest(alpha, beta) {
   }
 }
 
-/** Canonical construction: fixed p4 circle/crop, with p5 constrained by crop. */
+/** Original length-preserving construction inside both fixed point ranges. */
 export function targetPointsForRequest(initial, alpha, beta = null) {
   validateRequest(alpha, beta);
   const requestedBeta = beta ?? initial.angles.beta;
@@ -129,19 +135,47 @@ export function targetPointsForRequest(initial, alpha, beta = null) {
       if (result) break;
     }
   }
-  if (!result) throw new RangeError('No target is reachable inside the initial p4 editing range and fixed crop.');
+  if (!result) throw new RangeError('No target is reachable inside the initial p4/p5 editing ranges and fixed crop.');
   return {...result, limited: Math.abs(result.alpha - requestedAlpha) > EPSILON ||
     Math.abs(result.beta - requestedBeta) > EPSILON};
 }
 
 export const boundedTargetPoints = targetPointsForRequest;
 
+/** A direct p4/p5 drag stays in its initial circle and the fixed native crop. */
+export function boundTargetPoint(initial, index, requested) {
+  if (![3, 4].includes(index) || !finitePoint(requested)) {
+    throw new TypeError('A direct p4/p5 target requires its point index and finite coordinates.');
+  }
+  const range = index === 3 ? initial.rangeP4 : initial.rangeP5;
+  const length = distance(requested, range.center);
+  const scale = length > range.radius && length > 0 ? range.radius / length : 1;
+  const result = range.center.map((value, axis) => value + (requested[axis] - value) * scale);
+  // The box is convex and contains the circle center, so this also stays in the
+  // circle. Neither the center nor radius depends on earlier target controls.
+  return [clamp(result[0], initial.box[0], initial.box[2] - 1),
+    clamp(result[1], initial.box[1], initial.box[3] - 1)];
+}
+
+/**
+ * Direct pointer controls are separate from canonical numerical angle inputs.
+ * Only the dragged target moves. In particular moving p4 does not translate p5
+ * or project either segment back to its initial length.
+ */
+export function directTargetPoints(initial, index, cursor, currentPoints = initial.points) {
+  const points = validateTargetPoints(initial.points, currentPoints);
+  const bounded = boundTargetPoint(initial, index, cursor);
+  points[index] = bounded;
+  const measured = grafAngles(points); // Reject coincident roof landmarks.
+  return {points, ...measured, limited: distance(bounded, cursor) > EPSILON};
+}
+
 function closestP5AtAlpha(initial, alpha, cursor, currentBeta) {
   if (!insideP4Range(initial, solved(initial, alpha, currentBeta)[3])) return null;
   let best = null, bestDistance = Infinity;
   for (const beta of angleCandidates(BETA_MIN, BETA_MAX, currentBeta, initial.angles.beta)) {
     const points = solved(initial, alpha, beta);
-    if (!insideBox(points[4], initial.box)) continue;
+    if (!insideP5Range(initial, points[4])) continue;
     const error = distance(points[4], cursor);
     if (error < bestDistance - EPSILON) {best = {points, alpha, beta}; bestDistance = error;}
   }
@@ -174,7 +208,7 @@ export function anglesForPointer(initial, index, cursor, currentAlpha, currentBe
       if (result) break;
     }
   }
-  if (!result) throw new RangeError('No target is reachable inside the initial p4 editing range and fixed crop.');
+  if (!result) throw new RangeError('No target is reachable inside the initial p4/p5 editing ranges and fixed crop.');
   // Reuse the identity policy if the original angle pair was selected.
   const resolved = targetPointsForRequest(initial, result.alpha, result.beta);
   return {...resolved, limited: distance(resolved.points[index], cursor) > EPSILON};

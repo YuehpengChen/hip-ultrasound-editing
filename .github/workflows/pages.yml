@@ -14,6 +14,9 @@ on:
       - head-edit-runner.mjs
       - geometry.mjs
       - model-worker.mjs
+      - keypoint-controls.mjs
+      - keypoint-worker.mjs
+      - test-*.mjs
       - runtime/**
       - assets/method-overview.png
       - samples/**
@@ -32,12 +35,25 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: actions/configure-pages@v5
+      - name: Verify geometry and interaction controls
+        run: |
+          node --version
+          node --check app.mjs
+          node --check model-worker.mjs
+          node --check keypoint-worker.mjs
+          node test-bounded-controls.mjs
+          node test-direct-target.mjs
+          node test-target-head.mjs
+          node test-landmark-controls.mjs
+          node test-head-edit-runner.mjs
+          node test-keypoint-controls.mjs
       - name: Assemble only approved public inference assets
         env:
           MODEL_URL: https://github.com/YuehpengChen/hip-ultrasound-editing/releases/download/v0.1.0-browser/angleviz_v4_fp32.onnx
+          KEYPOINT_MODEL_URL: https://github.com/YuehpengChen/hip-ultrasound-editing/releases/download/v0.1.0-browser/graf_keypoints_fp32.onnx
         run: |
           mkdir -p _site/models _site/samples _site/runtime _site/assets
-          cp index.html style.css app.mjs bounded-controls.mjs landmark-controls.mjs head-controls.mjs head-edit-runner.mjs geometry.mjs model-worker.mjs .nojekyll _site/
+          cp index.html style.css app.mjs bounded-controls.mjs landmark-controls.mjs head-controls.mjs head-edit-runner.mjs geometry.mjs model-worker.mjs keypoint-controls.mjs keypoint-worker.mjs .nojekyll _site/
           cp samples/sample-1.png samples/sample-2.png samples/sample-3.png samples/samples.json _site/samples/
           curl --fail --location --retry 3 https://registry.npmjs.org/onnxruntime-web/-/onnxruntime-web-1.23.2.tgz --output "$RUNNER_TEMP/onnxruntime-web-1.23.2.tgz"
           echo "0b8707d7efab9a2bea63564d66cad79e897cfd0bd627e5ae000488ffc1c45c7d  $RUNNER_TEMP/onnxruntime-web-1.23.2.tgz" | sha256sum --check
@@ -52,6 +68,8 @@ jobs:
           cp assets/method-overview.png _site/assets/
           curl --fail --location --retry 3 "$MODEL_URL" --output _site/models/angleviz_v4_fp32.onnx
           echo 'af028a3ffb524b7c9dc90a93e9f21e59cb154d23749a8a34aa35d0990d8dce07  _site/models/angleviz_v4_fp32.onnx' | sha256sum --check
+          curl --fail --location --retry 3 "$KEYPOINT_MODEL_URL" --output _site/models/graf_keypoints_fp32.onnx
+          echo '4be6ed5d9dbe98b9248ccc95fc40d10b9d6735c86dbf5abadcf1ea519f199f6d  _site/models/graf_keypoints_fp32.onnx' | sha256sum --check
       - uses: actions/upload-pages-artifact@v4
         with:
           path: _site

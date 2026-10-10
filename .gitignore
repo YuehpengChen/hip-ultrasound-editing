@@ -3,6 +3,7 @@ qa.html
 qa/
 private/
 *.log
+models/graf_keypoints_fp32.onnx
 runtime/ort.wasm.min.mjs
 runtime/ort-wasm-simd-threaded.mjs
 runtime/ort-wasm-simd-threaded.wasm

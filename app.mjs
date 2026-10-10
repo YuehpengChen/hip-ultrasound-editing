@@ -1,12 +1,39 @@
-import {prepareEdit,runPreparedEdit,rgbaToGrayscale,extractNativeCrop,grayscaleBytes,solveTargetHead} from './geometry.mjs?v=20261010-fixed-origin';
-import {captureInitialGeometry,boundTargetCenter,headHandlesAtCenter,targetPointsForRequest,anglesForPointer} from './bounded-controls.mjs?v=20261010-p4-ranges';
+import {prepareEdit,runPreparedEdit,rgbaToGrayscale,extractNativeCrop,grayscaleBytes,solveTargetHead,grafAngles} from './geometry.mjs?v=20261010-direct-target';
+import {captureInitialGeometry,boundTargetCenter,headHandlesAtCenter,targetPointsForRequest,directTargetPoints} from './bounded-controls.mjs?v=20261010-direct-target';
 import {headCenter} from './landmark-controls.mjs?v=20261010-p5';
+import {keypointTensor,decodeGrafHeatmaps} from './keypoint-controls.mjs?v=20261010-keypoint';
 const $=id=>document.getElementById(id),BLUE='#42b5e5',YELLOW='#f1b64a';
-const state={gray:null,width:256,height:256,points:Array(5).fill(null),head:Array(2).fill(null),initial:null,targetCenter:null,displayCenter:null,targetGeometry:null,prepared:null,signature:null,box:null,result:null,busy:false,job:0,modelReady:false};
+const state={gray:null,width:256,height:256,points:Array(5).fill(null),head:Array(2).fill(null),initial:null,targetCenter:null,manualTargetPoints:null,displayCenter:null,targetGeometry:null,prepared:null,signature:null,box:null,result:null,review:false,busy:false,job:0,modelReady:false};
 let worker,readyResolve,readyReject,readyPromise,dragging=null;
+let keypointWorker,keypointReady,keypointResolve,keypointReject,keypointPending,keypointJob=0,keypointLoaded=false;
 const pending=new Map(),source=$('source'),edited=$('edited');
 const finitePoint=p=>p&&p.length===2&&p.every(Number.isFinite);
 function status(message,error=false){$('status').textContent=message;$('status').hidden=!message;$('status').classList.toggle('error',error);}
+function lockControls(){for(const input of document.querySelectorAll('input,select,button'))input.disabled=true;}
+function unlockControls(){for(const input of document.querySelectorAll('input,select,button'))input.disabled=false;updateCoordinateInputs();$('run').disabled=state.review||!state.prepared;}
+function ensureKeypointWorker(){
+  if(keypointWorker)return;
+  keypointWorker=new Worker(new URL('./keypoint-worker.mjs',import.meta.url),{type:'module'});
+  keypointWorker.onmessage=({data})=>{
+    if(data.type==='progress'){$('progress').hidden=false;$('progress').value=Math.min(1,data.value);status('Loading keypoint model: '+Math.round(data.value*100)+'%');}
+    if(data.type==='initializing'){status('Initializing keypoint model…');$('progress').hidden=true;}
+    if(data.type==='ready'){keypointLoaded=true;keypointResolve?.();}
+    if(data.type==='keypoints'&&data.id===keypointPending?.id){keypointPending.resolve(data.heatmaps);keypointPending=null;}
+    if(data.type==='error'){keypointReject?.(new Error(data.message));keypointPending?.reject(new Error(data.message));keypointPending=null;}
+  };
+  keypointWorker.onerror=e=>{keypointReject?.(new Error(e.message));keypointPending?.reject(new Error(e.message));keypointPending=null;};
+}
+async function detectInitialPoints(rgba,width,height){
+  ensureKeypointWorker();
+  if(!keypointLoaded){
+    if(!keypointReady){keypointReady=new Promise((resolve,reject)=>{keypointResolve=resolve;keypointReject=reject;});keypointWorker.postMessage({type:'load',url:new URL('./models/graf_keypoints_fp32.onnx',import.meta.url).href});}
+    try{await keypointReady;}catch(e){keypointReady=null;throw e;}
+  }
+  status('Detecting initial points…');
+  const image=keypointTensor(rgba,width,height),id=++keypointJob;
+  const heatmaps=await new Promise((resolve,reject)=>{keypointPending={id,resolve,reject};keypointWorker.postMessage({type:'detect',id,image},[image.buffer]);});
+  return decodeGrafHeatmaps(heatmaps,width,height);
+}
 function ensureWorker(){
   if(worker)return;
   worker=new Worker(new URL('./model-worker.mjs',import.meta.url),{type:'module'});
@@ -34,7 +61,7 @@ function invalidate(){state.result=null;$('result-state').textContent='';edited.
 function hasPoints(){return state.points.every(finitePoint);}
 function hasSourceHead(){return state.head.every(finitePoint)&&Math.hypot(state.head[0][0]-state.head[1][0],state.head[0][1]-state.head[1][1])>0;}
 function captureSource(){
-  if(!hasPoints())return;
+  if(state.review||!hasPoints())return;
   if(!state.initial&&dragging===null){
     state.initial=captureInitialGeometry(state.points,hasSourceHead()?state.head:null,state.width,state.height);
   }else if(state.initial&&!state.initial.sourceCenter&&hasSourceHead()&&dragging===null){
@@ -76,7 +103,8 @@ function updatePoint(index,point){
   if(index<5){
     if(state.initial){
       if(index<3)return;
-      const target=anglesForPointer(state.initial,index,point,Number($('alpha').value),$('keep-beta').checked?null:Number($('beta').value));
+      const target=directTargetPoints(state.initial,index,point,state.manualTargetPoints??state.targetGeometry?.points??state.initial.points);
+      state.manualTargetPoints=target.points.map(p=>p.slice());
       applyAngles(target,index);
     }else state.points[index]=point;
   }else if(index<7)updateHeadPoint(index-5,point);
@@ -108,15 +136,19 @@ function updateCoordinateInputs(){
   for(const option of choice.options){const i=Number(option.value);option.disabled=locked(i);if(i===3||i===4)option.textContent=pointLabel(i)+' · '+(i===3?'Bony rim':'Labrum centre');}
   if(choice.selectedOptions[0]?.disabled){const next=[...choice.options].find(option=>!option.disabled);if(next)choice.value=next.value;}
   $('reset-head-target').disabled=state.busy||!state.targetCenter;
-  $('beta').disabled=state.busy||$('keep-beta').checked;
+  $('confirm-points').hidden=!state.review;
+  $('confirm-points').disabled=state.busy||!hasPoints();
+  for(const id of ['alpha','keep-beta','head-shift','head-refine'])$(id).disabled=state.busy||state.review||!state.gray;
+  $('beta').disabled=state.busy||state.review||$('keep-beta').checked;
 }
 function prepare(){
   state.prepared=null;state.targetGeometry=null;state.displayCenter=null;
-  if(!state.gray||!hasPoints())return;
+  if(state.review||!state.gray||!hasPoints())return;
   captureSource();
   if(!state.initial)return;
   const initial=state.initial,box=initial.box,shift=p=>[p[0]-box[0],p[1]-box[1]];
-  const target=targetPointsForRequest(initial,Number($('alpha').value),$('keep-beta').checked?null:Number($('beta').value));
+  const target=state.manualTargetPoints?{points:state.manualTargetPoints.map(p=>p.slice()),...grafAngles(state.manualTargetPoints)}:
+    targetPointsForRequest(initial,Number($('alpha').value),$('keep-beta').checked?null:Number($('beta').value));
   applyAngles(target);state.targetGeometry=target;
   if(initial.sourceCenter){
     const requested=state.targetCenter??solveTargetHead(initial.points,initial.sourceCenter,target.alpha);
@@ -125,12 +157,13 @@ function prepare(){
   // Every request starts with the original pixels and the captured source coordinates.
   const crop=extractNativeCrop(state.gray,state.width,state.height,box);
   state.prepared=prepareEdit({image:crop,normalized:true,points:initial.points.map(shift),targetAlpha:target.alpha,targetBeta:target.beta,
+    targetPoints:state.manualTargetPoints?target.points.map(shift):null,
     headEndpoints:initial.headEndpoints?.map(shift)??null,targetHeadCenter:state.displayCenter?shift(state.displayCenter):null,
     headShift:$('head-shift').checked,headRefine:$('head-refine').checked});
 }
 function editSignature(){
   if(!state.prepared)return null;
-  return JSON.stringify([state.prepared.targetAlpha,state.prepared.targetBeta,state.displayCenter,$('head-shift').checked,$('head-refine').checked,state.initial.headEndpoints]);
+  return JSON.stringify([state.prepared.targetPoints,state.prepared.targetAlpha,state.prepared.targetBeta,state.displayCenter,$('head-shift').checked,$('head-refine').checked,state.initial.headEndpoints]);
 }
 function changed(reset=false){
   if(state.busy)return;
@@ -142,8 +175,8 @@ function changed(reset=false){
       if(state.displayCenter&&$('head-shift').checked){const f=state.initial.sourceCenter,d=state.displayCenter.map((v,i)=>v-f[i]);$('delta').textContent='δ = ('+d[0].toFixed(1)+', '+d[1].toFixed(1)+') px';}}
   }catch(e){state.prepared=null;status(e.message,true);}
   const next=editSignature();state.signature=next;
-  if(previous!==next||reset){invalidate();if(!state.prepared&&hasPoints())status('Check the source landmarks and H endpoints.',true);}
-  $('run').disabled=!state.prepared;updateCoordinateInputs();drawSource();
+  if(previous!==next||reset){invalidate();if(state.review)status('Review points, then Confirm points.');else if(!state.prepared&&hasPoints())status('Check the source landmarks and H endpoints.',true);}
+  $('run').disabled=state.review||!state.prepared;updateCoordinateInputs();drawSource();
 }
 function imageData(bytes,w,h){const pixels=new Uint8ClampedArray(w*h*4);for(let i=0;i<bytes.length;i++){pixels[i*4]=pixels[i*4+1]=pixels[i*4+2]=bytes[i];pixels[i*4+3]=255;}return new ImageData(pixels,w,h);}
 function displayScale(canvas){return state.width/(canvas.getBoundingClientRect().width||256);}
@@ -169,7 +202,7 @@ function drawSource(){
   if(!state.gray)return;
   source.width=state.width;source.height=state.height;const ctx=source.getContext('2d');ctx.putImageData(imageData(state.gray,state.width,state.height),0,0);
   if(!$('overlay').checked)return;
-  range(ctx,state.initial?.rangeP4,BLUE);range(ctx,state.initial?.rangeHead,YELLOW);
+  range(ctx,state.initial?.rangeP4,BLUE);range(ctx,state.initial?.rangeP5,BLUE);range(ctx,state.initial?.rangeHead,YELLOW);
   const points=state.targetGeometry?.points??state.points;drawLines(ctx,points,'#fff',Boolean(state.initial));
   points.forEach((p,i)=>marker(ctx,p,i>=3?pointLabel(i):'',BLUE,i<3&&Boolean(state.initial)));
   const head=controlHead();
@@ -208,12 +241,20 @@ async function setImage(blob,metadata=null){
   const bitmap=await createImageBitmap(blob);if(state.busy){bitmap.close();return;}
   if(bitmap.width<256||bitmap.height<256||bitmap.width>4096||bitmap.height>4096){bitmap.close();throw new Error('Image dimensions must be between 256 and 4096 pixels.');}
   const c=document.createElement('canvas');c.width=bitmap.width;c.height=bitmap.height;const ctx=c.getContext('2d');ctx.fillStyle='black';ctx.fillRect(0,0,c.width,c.height);ctx.drawImage(bitmap,0,0);bitmap.close();
-  state.gray=rgbaToGrayscale(ctx.getImageData(0,0,c.width,c.height).data);state.width=c.width;state.height=c.height;
+  const rgba=ctx.getImageData(0,0,c.width,c.height).data;
+  state.gray=rgbaToGrayscale(rgba);state.width=c.width;state.height=c.height;
   state.points=metadata?metadata.points.map(p=>p.slice()):Array(5).fill(null);state.head=metadata?.headEndpoints?metadata.headEndpoints.map(p=>p.slice()):Array(2).fill(null);
-  state.initial=null;state.targetCenter=null;state.displayCenter=null;state.prepared=null;state.signature=null;state.targetGeometry=null;state.box=null;
+  state.initial=null;state.targetCenter=null;state.manualTargetPoints=null;state.displayCenter=null;state.prepared=null;state.signature=null;state.targetGeometry=null;state.box=null;state.review=!metadata;
   $('keep-beta').checked=true;
   if(metadata){$('alpha').value=Math.min(84,Math.max(30,metadata.source_alpha+10)).toFixed(1);$('beta').value=metadata.source_beta.toFixed(1);}
   $('source-size').textContent=c.width+' × '+c.height;edited.width=state.width;edited.height=state.height;$('point-choice').value='0';coordinateTable();changed(true);
+  if(!metadata){
+    state.busy=true;lockControls();status('Loading keypoint model…');let failure=null;
+    try{const result=await detectInitialPoints(rgba,state.width,state.height);state.points=result.points.map(p=>p.slice());}
+    catch(e){failure=e;}
+    finally{state.busy=false;$('progress').hidden=true;unlockControls();changed(true);}
+    status(failure?'Keypoint detection failed. Place the initial points manually. '+failure.message:'Review points, then Confirm points.',Boolean(failure));
+  }
 }
 function clickCoordinates(event){const rect=source.getBoundingClientRect();return[(event.clientX-rect.left)*state.width/rect.width,(event.clientY-rect.top)*state.height/rect.height];}
 function pointerTarget(point){
@@ -246,31 +287,41 @@ function finishDrag(){
   }
 }
 source.addEventListener('pointerup',finishDrag);source.addEventListener('pointercancel',finishDrag);
-for(const id of ['alpha','beta','keep-beta','head-shift','head-refine'])$(id).addEventListener('change',()=>changed());
+for(const id of ['alpha','beta','keep-beta'])$(id).addEventListener('change',()=>{state.manualTargetPoints=null;changed();});
+for(const id of ['head-shift','head-refine'])$(id).addEventListener('change',()=>changed());
 $('overlay').addEventListener('change',()=>{drawSource();drawResult();});
 $('diff-toggle').addEventListener('change',()=>{$('diff-panel').hidden=!$('diff-toggle').checked||!state.result;});
 $('reset-head-target').onclick=()=>{if(state.busy)return;state.targetCenter=null;changed();};
+$('confirm-points').onclick=()=>{
+  if(state.busy||!state.review||!hasPoints())return;
+  try{
+    const initial=captureInitialGeometry(state.points,hasSourceHead()?state.head:null,state.width,state.height);
+    state.initial=initial;state.box=initial.box;state.review=false;state.manualTargetPoints=null;state.targetCenter=null;
+    $('alpha').value=String(initial.angles.alpha);$('beta').value=String(initial.angles.beta);$('keep-beta').checked=true;
+    changed(true);
+  }catch(e){status(e.message,true);updateCoordinateInputs();}
+};
 $('clear-h').onclick=()=>{
   if(state.busy)return;state.head=Array(2).fill(null);state.targetCenter=null;
   if(state.initial)state.initial=captureInitialGeometry(state.initial.points,null,state.width,state.height);
   $('point-choice').value='5';changed(true);
 };
 $('reset-points').onclick=()=>{
-  if(state.busy)return;state.points=Array(5).fill(null);state.head=Array(2).fill(null);state.initial=null;state.targetCenter=null;state.box=null;$('point-choice').value='0';changed(true);
+  if(state.busy)return;state.points=Array(5).fill(null);state.head=Array(2).fill(null);state.initial=null;state.targetCenter=null;state.manualTargetPoints=null;state.box=null;state.review=true;$('point-choice').value='0';changed(true);
 };
 $('choose-image').onclick=()=>{$('upload').click();};
 $('upload').onchange=async e=>{try{if(e.target.files[0])await setImage(e.target.files[0]);}catch(err){status(err.message,true);}};
 async function runEdit(){
-  if(state.busy)return;
+  if(state.busy||state.review)return;
   try{
     prepare();if(!state.prepared)throw new Error('Five source landmarks are required.');
-    state.busy=true;for(const input of document.querySelectorAll('input,select,button'))input.disabled=true;
+    state.busy=true;lockControls();
     const start=performance.now();if(!state.prepared.same)await loadModel();status('Running…');
     state.result=await runPreparedEdit(state.prepared,generate);state.result.elapsed=(performance.now()-start)/1000;
     drawResult();$('result-state').textContent=state.width+' × '+state.height;
     status(state.result.generatorCalls?'Done · '+state.result.elapsed.toFixed(2)+' s':'Unchanged');
   }catch(e){status(e.message,true);}
-  finally{state.busy=false;for(const input of document.querySelectorAll('input,select,button'))input.disabled=false;updateCoordinateInputs();$('run').disabled=!state.prepared;$('progress').hidden=true;}
+  finally{state.busy=false;unlockControls();$('progress').hidden=true;}
 }
 $('run').onclick=runEdit;coordinateTable();updateCoordinateInputs();
 window.addEventListener('resize',()=>{drawSource();drawResult();});
