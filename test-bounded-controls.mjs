@@ -51,10 +51,13 @@ for (const sample of samples) {
   near(initial.rangeP4.radius, 0.8 * distance(before.points[3], before.points[4]), `${sample.id}: blue radius reduced by 20 percent`);
   equal(initial.rangeP5.center, before.points[4], `${sample.id}: independent p5 circle uses initial p5`);
   near(initial.rangeP5.radius, initial.rangeP4.radius, `${sample.id}: p5 circle uses the same initial segment-based radius`);
+  equal(initial.f, headCenter(before.head), `${sample.id}: fixed source f is the initial H midpoint`);
+  equal(initial.rangeHead.center, initial.f, `${sample.id}: yellow circle is centered at fixed initial f`);
+  equal(initial.rangeHead.radius, initial.rangeP4.radius, `${sample.id}: yellow and p4 blue circle radii match exactly`);
+  equal(initial.rangeHead.radius, initial.rangeP5.radius, `${sample.id}: yellow and p5 blue circle radii match exactly`);
   const previousHeadRange = Math.min(initial.headRadius * 0.5,
     initial.f[0] - initial.box[0], initial.box[2] - 1 - initial.f[0],
-    initial.f[1] - initial.box[1], initial.box[3] - 1 - initial.f[1]);
-  near(initial.rangeHead.radius, previousHeadRange * 1.1, `${sample.id}: yellow radius enlarged by 10 percent`);
+    initial.f[1] - initial.box[1], initial.box[3] - 1 - initial.f[1]) * 1.1;
   const availableHeadDirections = [
     {axis: 0, sign: -1, space: initial.f[0] - initial.box[0]},
     {axis: 0, sign: 1, space: initial.box[2] - 1 - initial.f[0]},
@@ -65,7 +68,8 @@ for (const sample of samples) {
   inwardRequest[inward.axis] += inward.sign * initial.rangeHead.radius;
   const enlargedHeadTarget = boundTargetCenter(initial, inwardRequest);
   near(distance(enlargedHeadTarget, initial.f), initial.rangeHead.radius, `${sample.id}: enlarged yellow radius reachable inside crop`);
-  ok(distance(enlargedHeadTarget, initial.f) > previousHeadRange, `${sample.id}: enlarged head region permits more movement`);
+  ok(distance(enlargedHeadTarget, initial.f) > previousHeadRange, `${sample.id}: expanded yellow region permits movement beyond the previous capped radius`);
+  assertRange(initial, enlargedHeadTarget, initial.rangeHead, `${sample.id}: expanded f* movement`);
   assert.throws(() => {initial.points[4][0] += 1;}, TypeError); assertions++;
 
   const identity = targetPointsForRequest(initial, initial.angles.alpha, null);
@@ -147,6 +151,10 @@ for (const sample of samples) {
       assertCanonical(initial, anglesForPointer(initial, index, cursor, initial.angles.alpha, initial.angles.beta), `${sample.id}: pointer ${index}/${cursor}`);
     }
   }
+  equal(initial.rangeHead.center, headCenter(before.head), `${sample.id}: controls never recenter the yellow range`);
+  equal(initial.rangeHead.radius, 0.8 * distance(before.points[3], before.points[4]), `${sample.id}: controls never resize the yellow range`);
+  equal(initial.rangeHead.radius, initial.rangeP4.radius, `${sample.id}: controls preserve exact yellow/p4 radius equality`);
+  equal(initial.rangeHead.radius, initial.rangeP5.radius, `${sample.id}: controls preserve exact yellow/p5 radius equality`);
   equal(JSON.stringify(initial), snapshot, `${sample.id}: every control leaves all initial geometry/ranges fixed`);
 }
 
@@ -163,8 +171,20 @@ for (const sample of samples) {
     assertCanonical(initial, result, `joint pointer limitation ${index}`);
   }
   const edge = captureInitialGeometry(initial.points, [[254, 120], [256, 120]], 256, 256);
-  equal(edge.rangeHead.radius, 0, 'source f at fixed crop edge has a zero software head range');
-  equal(boundTargetCenter(edge, [100, 100]), edge.f, 'zero-radius initial head range stays at the exact initial f');
+  equal(edge.rangeHead.radius, edge.rangeP4.radius, 'source f at crop edge retains the same radius as p4');
+  equal(edge.rangeHead.radius, edge.rangeP5.radius, 'source f at crop edge retains the same radius as p5');
+  ok(edge.rangeHead.radius > 0, 'source f at crop edge does not collapse the yellow range');
+  const inward = boundTargetCenter(edge, [edge.f[0] - edge.rangeHead.radius, edge.f[1]]);
+  near(distance(inward, edge.f), edge.rangeHead.radius, 'source f at crop edge can move inward to the yellow boundary');
+  ok(inward[0] < edge.f[0], 'source f at right crop edge permits inward movement');
+  assertRange(edge, inward, edge.rangeHead, 'crop-edge inward f*');
+  equal(boundTargetCenter(edge, [edge.f[0] + 100, edge.f[1]]), edge.f, 'outward request is clipped to the fixed crop edge');
+  const diagonal = boundTargetCenter(edge, [edge.f[0] + 100, edge.f[1] + 100]);
+  equal(diagonal[0], edge.box[2] - 1, 'diagonal outward f* stays on the original crop edge');
+  ok(diagonal[1] > edge.f[1], 'diagonal outward request still permits its in-crop component');
+  assertRange(edge, diagonal, edge.rangeHead, 'crop-edge diagonal f*');
+  equal(edge.rangeHead.center, edge.f, 'crop clipping never moves the initial yellow center');
+  equal(edge.rangeHead.radius, edge.rangeP4.radius, 'crop clipping never shrinks the shared yellow radius');
 }
 
 {
@@ -177,6 +197,7 @@ for (const sample of samples) {
   }
   const complete = captureInitialGeometry(sample.points, sample.headEndpoints, sample.width, sample.height);
   equal(complete.rangeP4, initial.rangeP4, 'adding initial H does not change initial p4 range');
+  equal(complete.rangeP5, initial.rangeP5, 'adding initial H does not change initial p5 range');
   for (const invalid of [[NaN, 0], [0, Infinity], [0], ['0', 0], null]) {
     assert.throws(() => boundTargetCenter(complete, invalid), TypeError, 'target f* must be physically finite'); assertions++;
     assert.throws(() => anglesForPointer(complete, 4, invalid, 60, 45), TypeError, 'pointer must be physically finite'); assertions++;

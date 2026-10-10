@@ -52,17 +52,15 @@ export function captureInitialGeometry(points, headEndpoints = null, width = 256
     throw new RangeError('Initial f must be inside the fixed 256 × 256 editing region.');
   }
   const radius = head?.radius ?? 0;
-  const headRangeRadius = sourceCenter ? 1.1 * Math.max(0, Math.min(radius * 0.5,
-    sourceCenter[0] - box[0], box[2] - 1 - sourceCenter[0],
-    sourceCenter[1] - box[1], box[3] - 1 - sourceCenter[1])) : 0;
+  const rangeRadius = 0.8 * distance(sourcePoints[3], sourcePoints[4]);
   return deepFreeze({
     points: sourcePoints, sourcePoints,
     headEndpoints: head ? copyPoints(headEndpoints) : null,
     width, height, box, angles, sourceAngles: angles,
     sourceCenter, f: sourceCenter, headRadius: radius, radius,
-    rangeP4: {center: sourcePoints[3].slice(), radius: 0.8 * distance(sourcePoints[3], sourcePoints[4]), box: box.slice()},
-    rangeP5: {center: sourcePoints[4].slice(), radius: 0.8 * distance(sourcePoints[3], sourcePoints[4]), box: box.slice()},
-    rangeHead: sourceCenter ? {center: sourceCenter.slice(), radius: headRangeRadius, box: box.slice()} : null,
+    rangeP4: {center: sourcePoints[3].slice(), radius: rangeRadius, box: box.slice()},
+    rangeP5: {center: sourcePoints[4].slice(), radius: rangeRadius, box: box.slice()},
+    rangeHead: sourceCenter ? {center: sourceCenter.slice(), radius: rangeRadius, box: box.slice()} : null,
   });
 }
 
