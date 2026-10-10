@@ -1,5 +1,5 @@
 import {prepareEdit,runPreparedEdit,rgbaToGrayscale,extractNativeCrop,grayscaleBytes,solveTargetHead,grafAngles} from './geometry.mjs?v=20261010-direct-target';
-import {captureInitialGeometry,boundTargetCenter,headHandlesAtCenter,targetPointsForRequest,directTargetPoints} from './bounded-controls.mjs?v=20261010-direct-target';
+import {captureInitialGeometry,boundTargetCenter,headHandlesAtCenter,targetPointsForRequest,directTargetPoints} from './bounded-controls.mjs?v=20261010-direct-target-cache2';
 import {headCenter} from './landmark-controls.mjs?v=20261010-p5';
 import {keypointTensor,decodeGrafHeatmaps} from './keypoint-controls.mjs?v=20261010-keypoint';
 const $=id=>document.getElementById(id),BLUE='#42b5e5',YELLOW='#f1b64a';
