@@ -8,6 +8,7 @@ on:
       - index.html
       - style.css
       - app.mjs
+      - bounded-controls.mjs
       - landmark-controls.mjs
       - head-controls.mjs
       - head-edit-runner.mjs
@@ -36,7 +37,7 @@ jobs:
           MODEL_URL: https://github.com/YuehpengChen/hip-ultrasound-editing/releases/download/v0.1.0-browser/angleviz_v4_fp32.onnx
         run: |
           mkdir -p _site/models _site/samples _site/runtime _site/assets
-          cp index.html style.css app.mjs landmark-controls.mjs head-controls.mjs head-edit-runner.mjs geometry.mjs model-worker.mjs .nojekyll _site/
+          cp index.html style.css app.mjs bounded-controls.mjs landmark-controls.mjs head-controls.mjs head-edit-runner.mjs geometry.mjs model-worker.mjs .nojekyll _site/
           cp samples/sample-1.png samples/sample-2.png samples/sample-3.png samples/samples.json _site/samples/
           curl --fail --location --retry 3 https://registry.npmjs.org/onnxruntime-web/-/onnxruntime-web-1.23.2.tgz --output "$RUNNER_TEMP/onnxruntime-web-1.23.2.tgz"
           echo "0b8707d7efab9a2bea63564d66cad79e897cfd0bd627e5ae000488ffc1c45c7d  $RUNNER_TEMP/onnxruntime-web-1.23.2.tgz" | sha256sum --check
