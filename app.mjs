@@ -1,12 +1,10 @@
 import {prepareEdit,runPreparedEdit,rgbaToGrayscale,extractNativeCrop,grayscaleBytes,solveTargetHead} from './geometry.mjs?v=20261010-fixed-origin';
 import {captureInitialGeometry,boundTargetCenter,headHandlesAtCenter,targetPointsForRequest,anglesForPointer} from './bounded-controls.mjs?v=20261010-p4-ranges';
 import {headCenter} from './landmark-controls.mjs?v=20261010-p5';
-import {createHeadEditRunner} from './head-edit-runner.mjs?v=20261010-head-auto';
 const $=id=>document.getElementById(id),BLUE='#42b5e5',YELLOW='#f1b64a';
 const state={gray:null,width:256,height:256,points:Array(5).fill(null),head:Array(2).fill(null),initial:null,targetCenter:null,displayCenter:null,targetGeometry:null,prepared:null,signature:null,box:null,result:null,busy:false,job:0,modelReady:false};
 let worker,readyResolve,readyReject,readyPromise,dragging=null;
 const pending=new Map(),source=$('source'),edited=$('edited');
-const editRunner=createHeadEditRunner({run:runEdit,canRun:()=>!state.busy&&Boolean(state.prepared)});
 const finitePoint=p=>p&&p.length===2&&p.every(Number.isFinite);
 function status(message,error=false){$('status').textContent=message;$('status').hidden=!message;$('status').classList.toggle('error',error);}
 function ensureWorker(){
@@ -134,9 +132,9 @@ function editSignature(){
   if(!state.prepared)return null;
   return JSON.stringify([state.prepared.targetAlpha,state.prepared.targetBeta,state.displayCenter,$('head-shift').checked,$('head-refine').checked,state.initial.headEndpoints]);
 }
-function changed(auto=true){
+function changed(reset=false){
   if(state.busy)return;
-  const previous=state.signature,wasPending=editRunner.isPending();
+  const previous=state.signature;
   $('delta').textContent='δ —';$('source-angles').textContent='Source α — β —';
   try{
     prepare();
@@ -144,9 +142,8 @@ function changed(auto=true){
       if(state.displayCenter&&$('head-shift').checked){const f=state.initial.sourceCenter,d=state.displayCenter.map((v,i)=>v-f[i]);$('delta').textContent='δ = ('+d[0].toFixed(1)+', '+d[1].toFixed(1)+') px';}}
   }catch(e){state.prepared=null;status(e.message,true);}
   const next=editSignature();state.signature=next;
-  if(previous!==next||!auto){editRunner.cancel();invalidate();if(!state.prepared&&hasPoints())status('Check the source landmarks and H endpoints.',true);}
+  if(previous!==next||reset){invalidate();if(!state.prepared&&hasPoints())status('Check the source landmarks and H endpoints.',true);}
   $('run').disabled=!state.prepared;updateCoordinateInputs();drawSource();
-  if(auto&&next&&(next!==previous||wasPending))editRunner.request();
 }
 function imageData(bytes,w,h){const pixels=new Uint8ClampedArray(w*h*4);for(let i=0;i<bytes.length;i++){pixels[i*4]=pixels[i*4+1]=pixels[i*4+2]=bytes[i];pixels[i*4+3]=255;}return new ImageData(pixels,w,h);}
 function displayScale(canvas){return state.width/(canvas.getBoundingClientRect().width||256);}
@@ -174,7 +171,7 @@ function drawSource(){
   if(!$('overlay').checked)return;
   range(ctx,state.initial?.rangeP4,BLUE);range(ctx,state.initial?.rangeHead,YELLOW);
   const points=state.targetGeometry?.points??state.points;drawLines(ctx,points,'#fff',Boolean(state.initial));
-  points.forEach((p,i)=>marker(ctx,p,i===3?pointLabel(i):'',BLUE,i<3&&Boolean(state.initial)));
+  points.forEach((p,i)=>marker(ctx,p,i>=3?pointLabel(i):'',BLUE,i<3&&Boolean(state.initial)));
   const head=controlHead();
   if(head.every(finitePoint)){ctx.strokeStyle=BLUE;ctx.lineWidth=displayScale(source);ctx.beginPath();ctx.moveTo(...head[0]);ctx.lineTo(...head[1]);ctx.stroke();}
   head.forEach((p,i)=>marker(ctx,p,'H'+(i+1),BLUE));
@@ -207,7 +204,7 @@ function drawResult(){
   const canvas=$('difference');canvas.width=state.width;canvas.height=state.height;canvas.getContext('2d').putImageData(imageData(difference,state.width,state.height),0,0);$('diff-panel').hidden=!$('diff-toggle').checked;
 }
 async function setImage(blob,metadata=null){
-  if(state.busy)return;editRunner.cancel();editRunner.release();dragging=null;
+  if(state.busy)return;dragging=null;
   const bitmap=await createImageBitmap(blob);if(state.busy){bitmap.close();return;}
   if(bitmap.width<256||bitmap.height<256||bitmap.width>4096||bitmap.height>4096){bitmap.close();throw new Error('Image dimensions must be between 256 and 4096 pixels.');}
   const c=document.createElement('canvas');c.width=bitmap.width;c.height=bitmap.height;const ctx=c.getContext('2d');ctx.fillStyle='black';ctx.fillRect(0,0,c.width,c.height);ctx.drawImage(bitmap,0,0);bitmap.close();
@@ -216,7 +213,7 @@ async function setImage(blob,metadata=null){
   state.initial=null;state.targetCenter=null;state.displayCenter=null;state.prepared=null;state.signature=null;state.targetGeometry=null;state.box=null;
   $('keep-beta').checked=true;
   if(metadata){$('alpha').value=Math.min(84,Math.max(30,metadata.source_alpha+10)).toFixed(1);$('beta').value=metadata.source_beta.toFixed(1);}
-  $('source-size').textContent=c.width+' × '+c.height;edited.width=state.width;edited.height=state.height;$('point-choice').value='0';coordinateTable();changed(false);
+  $('source-size').textContent=c.width+' × '+c.height;edited.width=state.width;edited.height=state.height;$('point-choice').value='0';coordinateTable();changed(true);
 }
 function clickCoordinates(event){const rect=source.getBoundingClientRect();return[(event.clientX-rect.left)*state.width/rect.width,(event.clientY-rect.top)*state.height/rect.height];}
 function pointerTarget(point){
@@ -233,7 +230,7 @@ source.addEventListener('pointerdown',e=>{
   dragging=null;if(!state.gray||state.busy)return;
   const p=clickCoordinates(e);if(p[0]<0||p[1]<0||p[0]>=state.width||p[1]>=state.height)return;
   dragging=pointerTarget(p);if(dragging===null)return;
-  editRunner.hold();source.setPointerCapture(e.pointerId);
+  source.setPointerCapture(e.pointerId);
   try{updatePoint(dragging,p);changed();}catch(err){status(err.message,true);}
 });
 source.addEventListener('pointermove',e=>{
@@ -245,9 +242,8 @@ function finishDrag(){
   if(dragging!==null){
     const annotating=!state.initial||(dragging>=5&&dragging<7&&!state.initial.sourceCenter);
     if(annotating)$('point-choice').value=String(Math.min(6,dragging+1));
-    dragging=null;if(annotating)changed(false);else updateCoordinateInputs();
+    dragging=null;if(annotating)changed(true);else updateCoordinateInputs();
   }
-  editRunner.release();
 }
 source.addEventListener('pointerup',finishDrag);source.addEventListener('pointercancel',finishDrag);
 for(const id of ['alpha','beta','keep-beta','head-shift','head-refine'])$(id).addEventListener('change',()=>changed());
@@ -257,15 +253,15 @@ $('reset-head-target').onclick=()=>{if(state.busy)return;state.targetCenter=null
 $('clear-h').onclick=()=>{
   if(state.busy)return;state.head=Array(2).fill(null);state.targetCenter=null;
   if(state.initial)state.initial=captureInitialGeometry(state.initial.points,null,state.width,state.height);
-  $('point-choice').value='5';changed(false);
+  $('point-choice').value='5';changed(true);
 };
 $('reset-points').onclick=()=>{
-  if(state.busy)return;state.points=Array(5).fill(null);state.head=Array(2).fill(null);state.initial=null;state.targetCenter=null;state.box=null;$('point-choice').value='0';changed(false);
+  if(state.busy)return;state.points=Array(5).fill(null);state.head=Array(2).fill(null);state.initial=null;state.targetCenter=null;state.box=null;$('point-choice').value='0';changed(true);
 };
 $('choose-image').onclick=()=>{$('upload').click();};
 $('upload').onchange=async e=>{try{if(e.target.files[0])await setImage(e.target.files[0]);}catch(err){status(err.message,true);}};
 async function runEdit(){
-  if(state.busy)return;editRunner.cancel();
+  if(state.busy)return;
   try{
     prepare();if(!state.prepared)throw new Error('Five source landmarks are required.');
     state.busy=true;for(const input of document.querySelectorAll('input,select,button'))input.disabled=true;
