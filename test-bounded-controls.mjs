@@ -14,15 +14,20 @@ const samples = JSON.parse(readFileSync(new URL('./samples/samples.json', import
 
 function assertRange(initial, point, range, message) {
   ok(distance(point, range.center) <= range.radius + 1e-6, `${message}: initial circle`);
+  assertCrop(initial, point, message);
+}
+
+function assertCrop(initial, point, message) {
   ok(point[0] >= initial.box[0] - 1e-6 && point[0] <= initial.box[2] - 1 + 1e-6 &&
     point[1] >= initial.box[1] - 1e-6 && point[1] <= initial.box[3] - 1 + 1e-6, `${message}: fixed crop`);
 }
 
 function assertCanonical(initial, result, message) {
-  assertRange(initial, result.points[4], initial.rangeP5, message);
+  assertRange(initial, result.points[3], initial.rangeP4, `${message}: p4`);
+  assertCrop(initial, result.points[4], `${message}: p5`);
   equal(result.points.slice(0, 3), initial.points.slice(0, 3), `${message}: baseline and p3 preserved`);
   near(distance(result.points[3], result.points[2]), distance(initial.points[3], initial.points[2]), `${message}: bony roof length`);
-  near(distance(result.points[4], result.points[3]), initial.rangeP5.radius, `${message}: cartilage roof length`);
+  near(distance(result.points[4], result.points[3]), distance(initial.points[4], initial.points[3]), `${message}: cartilage roof length`);
   const measured = grafAngles(result.points);
   near(measured.alpha, result.alpha, `${message}: requested alpha`);
   near(measured.beta, result.beta, `${message}: requested beta`);
@@ -36,11 +41,29 @@ for (const sample of samples) {
   const snapshot = JSON.stringify(initial);
   equal({points, head}, before, `${sample.id}: capture leaves callers unchanged`);
   for (const value of [initial, initial.points, ...initial.points, initial.headEndpoints,
-    ...initial.headEndpoints, initial.box, initial.angles, initial.rangeP5, initial.rangeP5.center,
+    ...initial.headEndpoints, initial.box, initial.angles, initial.rangeP4, initial.rangeP4.center,
     initial.rangeHead, initial.rangeHead.center]) ok(Object.isFrozen(value), `${sample.id}: deeply frozen`);
   points[4][0] += 500; head[0][0] -= 500;
   equal(initial.points, before.points, `${sample.id}: points snapshot independent`);
   equal(initial.headEndpoints, before.head, `${sample.id}: source H snapshot independent`);
+  equal(initial.rangeP4.center, before.points[3], `${sample.id}: blue circle is centered at initial p4`);
+  near(initial.rangeP4.radius, 0.8 * distance(before.points[3], before.points[4]), `${sample.id}: blue radius reduced by 20 percent`);
+  ok(!Object.hasOwn(initial, 'rangeP5'), `${sample.id}: no p5-centered circle remains`);
+  const previousHeadRange = Math.min(initial.headRadius * 0.5,
+    initial.f[0] - initial.box[0], initial.box[2] - 1 - initial.f[0],
+    initial.f[1] - initial.box[1], initial.box[3] - 1 - initial.f[1]);
+  near(initial.rangeHead.radius, previousHeadRange * 1.1, `${sample.id}: yellow radius enlarged by 10 percent`);
+  const availableHeadDirections = [
+    {axis: 0, sign: -1, space: initial.f[0] - initial.box[0]},
+    {axis: 0, sign: 1, space: initial.box[2] - 1 - initial.f[0]},
+    {axis: 1, sign: -1, space: initial.f[1] - initial.box[1]},
+    {axis: 1, sign: 1, space: initial.box[3] - 1 - initial.f[1]},
+  ].sort((a, b) => b.space - a.space);
+  const inwardRequest = initial.f.slice(), inward = availableHeadDirections[0];
+  inwardRequest[inward.axis] += inward.sign * initial.rangeHead.radius;
+  const enlargedHeadTarget = boundTargetCenter(initial, inwardRequest);
+  near(distance(enlargedHeadTarget, initial.f), initial.rangeHead.radius, `${sample.id}: enlarged yellow radius reachable inside crop`);
+  ok(distance(enlargedHeadTarget, initial.f) > previousHeadRange, `${sample.id}: enlarged head region permits more movement`);
   assert.throws(() => {initial.points[4][0] += 1;}, TypeError); assertions++;
 
   const identity = targetPointsForRequest(initial, initial.angles.alpha, null);
@@ -50,6 +73,13 @@ for (const sample of samples) {
   equal(identity.limited, false, `${sample.id}: identity not limited`);
   ok(identity.points !== initial.points && identity.points[0] !== initial.points[0], `${sample.id}: return does not alias source`);
   equal(boundedTargetPoints(initial, initial.angles.alpha, null), identity, `${sample.id}: public alias`);
+  const betaRequest = Math.min(89.9, initial.angles.beta + 5);
+  const betaOnly = targetPointsForRequest(initial, initial.angles.alpha, betaRequest);
+  near(betaOnly.alpha, initial.angles.alpha, `${sample.id}: feasible beta edit preserves alpha`);
+  for (let axis = 0; axis < 2; axis++) near(betaOnly.points[3][axis], initial.points[3][axis], `${sample.id}: beta-only p4 unchanged axis ${axis}`);
+  const betaPointer = anglesForPointer(initial, 4, betaOnly.points[4], initial.angles.alpha, initial.angles.beta);
+  near(betaPointer.alpha, initial.angles.alpha, `${sample.id}: feasible p5 pointer preserves alpha`);
+  for (let axis = 0; axis < 2; axis++) near(betaPointer.points[3][axis], initial.points[3][axis], `${sample.id}: p5 pointer preserves p4 axis ${axis}`);
 
   for (const alpha of [30, 35, initial.angles.alpha, 60, 75, 84, -100, 300]) {
     for (const beta of [0.1, 20, initial.angles.beta, 89.9, -100, 300]) {
@@ -62,11 +92,19 @@ for (const sample of samples) {
   targetPointsForRequest(initial, 30, 89.9);
   targetPointsForRequest(initial, 84, 0.1);
   equal(targetPointsForRequest(initial, ...finalRequest), direct, `${sample.id}: landmark replay is path independent`);
+  const directPointer = anglesForPointer(initial, 3, direct.points[3], initial.angles.alpha, initial.angles.beta);
+  anglesForPointer(initial, 4, [0, 0], 84, 0.1);
+  equal(anglesForPointer(initial, 3, direct.points[3], initial.angles.alpha, initial.angles.beta), directPointer, `${sample.id}: pointer replay uses fixed initial range`);
+
+  // p5 is the coupled cartilage tip, not the blue-circle-controlled landmark.
+  // Its original position is already outside the smaller p4-centered circle.
+  ok(distance(identity.points[4], initial.rangeP4.center) > initial.rangeP4.radius,
+    `${sample.id}: p5 may lie outside the p4 circle`);
 
   for (const request of [initial.f, [initial.f[0] + 5, initial.f[1] - 4], [-10000, -10000], [10000, 10000]]) {
     const bounded = boundTargetCenter(initial, request), handles = headHandlesAtCenter(initial, request);
     assertRange(initial, bounded, initial.rangeHead, `${sample.id}: f* ${request}`);
-    equal(headCenter(handles), bounded, `${sample.id}: H midpoint is f*`);
+    for (let axis = 0; axis < 2; axis++) near(headCenter(handles)[axis], bounded[axis], `${sample.id}: H midpoint is f* axis ${axis}`);
     for (let axis = 0; axis < 2; axis++) {
       near(handles[1][axis] - handles[0][axis], initial.headEndpoints[1][axis] - initial.headEndpoints[0][axis], `${sample.id}: rigid diameter axis ${axis}`);
       near(handles[0][axis] - initial.headEndpoints[0][axis], bounded[axis] - initial.f[axis], `${sample.id}: absolute H displacement axis ${axis}`);
@@ -97,8 +135,8 @@ for (const sample of samples) {
 }
 
 {
-  // A short initial cartilage segment makes some alpha requests impossible
-  // even after beta adjustment. The fallback must constrain alpha as well.
+  // A short initial cartilage segment creates a small p4 editing circle.
+  // Beta cannot repair a p4 range violation, so fallback must constrain alpha.
   const initial = captureInitialGeometry([[10, 10], [80, 10], [100, 150], [170, 80], [171, 79]], null, 256, 256);
   const far = targetPointsForRequest(initial, 84, 45);
   ok(far.limited && far.alpha < 84, 'infeasible alpha falls back to a feasible initial-source construction');
@@ -117,12 +155,12 @@ for (const sample of samples) {
   const sample = samples[0], initial = captureInitialGeometry(sample.points, null, sample.width, sample.height);
   equal(initial.rangeHead, null, 'H absent has no head range');
   equal(initial.f, null, 'H absent has no source f');
-  assertCanonical(initial, targetPointsForRequest(initial, 70, 45), 'H absent still supports bounded p5');
+  assertCanonical(initial, targetPointsForRequest(initial, 70, 45), 'H absent still supports bounded p4 and crop-bound p5');
   for (const fn of [boundTargetCenter, headHandlesAtCenter]) {
     assert.throws(() => fn(initial, [100, 100]), RangeError, 'H absent cannot invent target f*'); assertions++;
   }
   const complete = captureInitialGeometry(sample.points, sample.headEndpoints, sample.width, sample.height);
-  equal(complete.rangeP5, initial.rangeP5, 'adding initial H does not change initial p5 range');
+  equal(complete.rangeP4, initial.rangeP4, 'adding initial H does not change initial p4 range');
   for (const invalid of [[NaN, 0], [0, Infinity], [0], ['0', 0], null]) {
     assert.throws(() => boundTargetCenter(complete, invalid), TypeError, 'target f* must be physically finite'); assertions++;
     assert.throws(() => anglesForPointer(complete, 4, invalid, 60, 45), TypeError, 'pointer must be physically finite'); assertions++;

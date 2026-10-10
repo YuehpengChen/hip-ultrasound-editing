@@ -34,7 +34,7 @@
         <figure><figcaption><b>Source</b><span id="source-size"></span></figcaption><div class="canvas-wrap"><canvas id="source" width="256" height="256" aria-label="Source image" tabindex="0"></canvas></div></figure>
         <figure><figcaption><b>Edited</b><span id="result-state"></span></figcaption><div class="canvas-wrap"><canvas id="edited" width="256" height="256" aria-label="Edited image"></canvas></div></figure>
       </div>
-      <div class="view-options"><label><input id="overlay" type="checkbox" checked> Show control points</label><span class="point-key"><i class="editable-swatch" aria-hidden="true"></i> H1 / H2 · fixed source f</span><span class="point-key"><i class="locked-swatch" aria-hidden="true"></i> Target f*</span></div>
+      <div class="view-options"><label><input id="overlay" type="checkbox" checked> Show control points</label><span class="point-key"><i class="editable-swatch" aria-hidden="true"></i> Source references / controls</span><span class="point-key"><i class="locked-swatch" aria-hidden="true"></i> Target points</span></div>
       <div id="status" class="status" role="status" aria-live="polite" hidden></div>
       <progress id="progress" max="1" value="0" hidden aria-label="Model download progress"></progress>
       <div class="result-tools"><label><input id="diff-toggle" type="checkbox"> Show difference</label></div>
@@ -70,5 +70,5 @@
   </section>
 </main>
 <footer><p>No account, installation or dedicated GPU is required. Images are processed locally in your browser.</p><p>Research demonstration. Not for clinical use.</p></footer>
-<script type="module" src="app.mjs?v=20261010-fixed-origin"></script>
+<script type="module" src="app.mjs?v=20261010-p4-ranges"></script>
 </body></html>

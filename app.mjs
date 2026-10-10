@@ -1,5 +1,5 @@
 import {prepareEdit,runPreparedEdit,rgbaToGrayscale,extractNativeCrop,grayscaleBytes,solveTargetHead} from './geometry.mjs?v=20261010-fixed-origin';
-import {captureInitialGeometry,boundTargetCenter,headHandlesAtCenter,targetPointsForRequest,anglesForPointer} from './bounded-controls.mjs?v=20261010-fixed-origin';
+import {captureInitialGeometry,boundTargetCenter,headHandlesAtCenter,targetPointsForRequest,anglesForPointer} from './bounded-controls.mjs?v=20261010-p4-ranges';
 import {headCenter} from './landmark-controls.mjs?v=20261010-p5';
 import {createHeadEditRunner} from './head-edit-runner.mjs?v=20261010-head-auto';
 const $=id=>document.getElementById(id),BLUE='#42b5e5',YELLOW='#f1b64a';
@@ -172,7 +172,7 @@ function drawSource(){
   if(!state.gray)return;
   source.width=state.width;source.height=state.height;const ctx=source.getContext('2d');ctx.putImageData(imageData(state.gray,state.width,state.height),0,0);
   if(!$('overlay').checked)return;
-  range(ctx,state.initial?.rangeP5,BLUE);range(ctx,state.initial?.rangeHead,YELLOW);
+  range(ctx,state.initial?.rangeP4,BLUE);range(ctx,state.initial?.rangeHead,YELLOW);
   const points=state.targetGeometry?.points??state.points;drawLines(ctx,points,'#fff',Boolean(state.initial));
   points.forEach((p,i)=>marker(ctx,p,i===3?pointLabel(i):'',BLUE,i<3&&Boolean(state.initial)));
   const head=controlHead();
@@ -183,10 +183,25 @@ function drawSource(){
   marker(ctx,state.displayCenter,'f*',YELLOW,false,true);
 }
 function mergedResult(){const bytes=state.gray.slice(),crop=grayscaleBytes(state.result.image),[x0,y0]=state.box;for(let y=0;y<256;y++)for(let x=0;x<256;x++)bytes[(y+y0)*state.width+x+x0]=crop[y*256+x];return bytes;}
+function resultPoints(ctx){
+  if(!$('overlay').checked||!state.initial||!state.prepared)return;
+  const initial=state.initial,points=state.prepared.targetPoints.map(p=>p.map((value,axis)=>value+state.box[axis]));
+  initial.points.slice(0,3).forEach(p=>marker(ctx,p,'',BLUE,true));
+  marker(ctx,initial.sourceCenter,'f',BLUE,false,false,4);
+  points.slice(3).forEach((p,i)=>marker(ctx,p,i===0?'p4*':'',YELLOW));
+  // Only display a translated target H when that operation was actually applied.
+  if(state.prepared.headLayers&&initial.sourceCenter){
+    const center=state.prepared.head.targetCenter.map((value,axis)=>value+state.box[axis]);
+    const head=headHandlesAtCenter(initial,center);
+    ctx.strokeStyle=YELLOW;ctx.lineWidth=displayScale(ctx.canvas);ctx.beginPath();ctx.moveTo(...head[0]);ctx.lineTo(...head[1]);ctx.stroke();
+    head.forEach((p,i)=>marker(ctx,p,'H'+(i+1)+'*',YELLOW));
+    marker(ctx,center,'f*',YELLOW,false,true);
+  }
+}
 function drawResult(){
   if(!state.result)return;
   edited.width=state.width;edited.height=state.height;const ctx=edited.getContext('2d'),bytes=mergedResult();ctx.putImageData(imageData(bytes,state.width,state.height),0,0);
-  if($('overlay').checked)marker(ctx,state.displayCenter,'f*',YELLOW);
+  resultPoints(ctx);
   const difference=new Uint8Array(state.width*state.height),[x0,y0]=state.box;
   for(let y=0;y<256;y++)for(let x=0;x<256;x++){const i=y*256+x;difference[(y+y0)*state.width+x+x0]=Math.min(255,Math.round(Math.abs(state.result.image[i]-state.prepared.original[i])/0.35*255));}
   const canvas=$('difference');canvas.width=state.width;canvas.height=state.height;canvas.getContext('2d').putImageData(imageData(difference,state.width,state.height),0,0);$('diff-panel').hidden=!$('diff-toggle').checked;
