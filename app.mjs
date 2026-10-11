@@ -218,7 +218,6 @@ function resultPoints(ctx){
   if(!$('overlay').checked||!state.initial||!state.prepared)return;
   const initial=state.initial,points=state.prepared.targetPoints.map(p=>p.map((value,axis)=>value+state.box[axis]));
   initial.points.slice(0,3).forEach(p=>marker(ctx,p,'',BLUE,true));
-  marker(ctx,initial.sourceCenter,'f',BLUE,true);
   points.slice(3).forEach((p,i)=>marker(ctx,p,i===0?'p4*':'',YELLOW));
   // Only display a translated target H when that operation was actually applied.
   if(state.prepared.headLayers&&initial.sourceCenter){
