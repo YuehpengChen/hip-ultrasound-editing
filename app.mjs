@@ -210,7 +210,7 @@ function drawSource(){
   if(head.every(finitePoint)){ctx.strokeStyle=BLUE;ctx.lineWidth=displayScale(source);ctx.beginPath();ctx.moveTo(...head[0]);ctx.lineTo(...head[1]);ctx.stroke();}
   head.forEach((p,i)=>marker(ctx,p,'H'+(i+1),BLUE));
   const f=state.initial?.sourceCenter??(hasSourceHead()?headCenter(state.head):null);
-  marker(ctx,f,'f',BLUE,false,false,4);
+  marker(ctx,f,'f',BLUE,true,false,4);
   marker(ctx,state.displayCenter,'f*',YELLOW,false,true);
 }
 function mergedResult(){const bytes=state.gray.slice(),crop=grayscaleBytes(state.result.image),[x0,y0]=state.box;for(let y=0;y<256;y++)for(let x=0;x<256;x++)bytes[(y+y0)*state.width+x+x0]=crop[y*256+x];return bytes;}
@@ -333,11 +333,11 @@ async function runEdit(){
 $('run').onclick=runEdit;coordinateTable();updateCoordinateInputs();
 window.addEventListener('resize',()=>{drawSource();drawResult();});
 try{
-  const response=await fetch('./samples/samples.json');if(!response.ok)throw new Error('Failed to load examples.');
+  const response=await fetch('./samples/samples.json?v=20261011-original-examples');if(!response.ok)throw new Error('Failed to load examples.');
   const samples=await response.json();
   for(let i=0;i<samples.length;i++){
     const example=samples[i],button=document.createElement('button');button.textContent='Example '+(i+1);
-    button.onclick=async()=>{try{const response=await fetch(new URL('./samples/'+example.image,import.meta.url));if(!response.ok)throw new Error('Failed to load example image.');await setImage(await response.blob(),example);}catch(e){status(e.message,true);}};
+    button.onclick=async()=>{try{const imageUrl=new URL('./samples/'+example.image,import.meta.url);if(example.image_sha256)imageUrl.searchParams.set('v',example.image_sha256);const response=await fetch(imageUrl);if(!response.ok)throw new Error('Failed to load example image.');await setImage(await response.blob(),example);}catch(e){status(e.message,true);}};
     $('examples').append(button);
   }
 }catch(e){status(e.message,true);}
