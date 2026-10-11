@@ -210,7 +210,7 @@ function drawSource(){
   if(head.every(finitePoint)){ctx.strokeStyle=BLUE;ctx.lineWidth=displayScale(source);ctx.beginPath();ctx.moveTo(...head[0]);ctx.lineTo(...head[1]);ctx.stroke();}
   head.forEach((p,i)=>marker(ctx,p,'H'+(i+1),BLUE));
   const f=state.initial?.sourceCenter??(hasSourceHead()?headCenter(state.head):null);
-  marker(ctx,f,'f',BLUE,true,false,4);
+  marker(ctx,f,'f',BLUE,true);
   marker(ctx,state.displayCenter,'f*',YELLOW,false,true);
 }
 function mergedResult(){const bytes=state.gray.slice(),crop=grayscaleBytes(state.result.image),[x0,y0]=state.box;for(let y=0;y<256;y++)for(let x=0;x<256;x++)bytes[(y+y0)*state.width+x+x0]=crop[y*256+x];return bytes;}
@@ -218,7 +218,7 @@ function resultPoints(ctx){
   if(!$('overlay').checked||!state.initial||!state.prepared)return;
   const initial=state.initial,points=state.prepared.targetPoints.map(p=>p.map((value,axis)=>value+state.box[axis]));
   initial.points.slice(0,3).forEach(p=>marker(ctx,p,'',BLUE,true));
-  marker(ctx,initial.sourceCenter,'f',BLUE,false,false,4);
+  marker(ctx,initial.sourceCenter,'f',BLUE,true);
   points.slice(3).forEach((p,i)=>marker(ctx,p,i===0?'p4*':'',YELLOW));
   // Only display a translated target H when that operation was actually applied.
   if(state.prepared.headLayers&&initial.sourceCenter){
