@@ -2,9 +2,10 @@ import {prepareEdit,runPreparedEdit,rgbaToGrayscale,extractNativeCrop,grayscaleB
 import {captureInitialGeometry,boundTargetCenter,headHandlesAtCenter,targetPointsForRequest,directTargetPoints} from './bounded-controls.mjs?v=20261010-equal-head-range';
 import {headCenter} from './landmark-controls.mjs?v=20261010-p5';
 import {keypointTensor,decodeGrafHeatmaps} from './keypoint-controls.mjs?v=20261010-keypoint';
+import {pickDragPoint,startPointDrag,advancePointDrag} from './point-drag-controls.mjs?v=20261011-intentional-drag';
 const $=id=>document.getElementById(id),BLUE='#42b5e5',YELLOW='#f1b64a';
 const state={gray:null,width:256,height:256,points:Array(5).fill(null),head:Array(2).fill(null),initial:null,targetCenter:null,manualTargetPoints:null,displayCenter:null,targetGeometry:null,prepared:null,signature:null,box:null,result:null,review:false,busy:false,job:0,modelReady:false};
-let worker,readyResolve,readyReject,readyPromise,dragging=null;
+let worker,readyResolve,readyReject,readyPromise,dragging=null,dragGesture=null;
 let keypointWorker,keypointReady,keypointResolve,keypointReject,keypointPending,keypointJob=0,keypointLoaded=false;
 const pending=new Map(),source=$('source'),edited=$('edited');
 const finitePoint=p=>p&&p.length===2&&p.every(Number.isFinite);
@@ -237,7 +238,7 @@ function drawResult(){
   const canvas=$('difference');canvas.width=state.width;canvas.height=state.height;canvas.getContext('2d').putImageData(imageData(difference,state.width,state.height),0,0);$('diff-panel').hidden=!$('diff-toggle').checked;
 }
 async function setImage(blob,metadata=null){
-  if(state.busy)return;dragging=null;
+  if(state.busy)return;dragging=null;dragGesture=null;
   const bitmap=await createImageBitmap(blob);if(state.busy){bitmap.close();return;}
   if(bitmap.width<256||bitmap.height<256||bitmap.width>4096||bitmap.height>4096){bitmap.close();throw new Error('Image dimensions must be between 256 and 4096 pixels.');}
   const c=document.createElement('canvas');c.width=bitmap.width;c.height=bitmap.height;const ctx=c.getContext('2d');ctx.fillStyle='black';ctx.fillRect(0,0,c.width,c.height);ctx.drawImage(bitmap,0,0);bitmap.close();
@@ -258,35 +259,41 @@ async function setImage(blob,metadata=null){
 }
 function clickCoordinates(event){const rect=source.getBoundingClientRect();return[(event.clientX-rect.left)*state.width/rect.width,(event.clientY-rect.top)*state.height/rect.height];}
 function pointerTarget(point){
-  const threshold=7*displayScale(source),distance=p=>finitePoint(p)?Math.hypot(p[0]-point[0],p[1]-point[1]):Infinity;
-  // f* is the editable inner yellow dot even when it initially overlaps f.
-  if(state.displayCenter&&distance(state.displayCenter)<=3.5*displayScale(source))return 7;
-  if(state.initial?.sourceCenter&&distance(state.initial.sourceCenter)<=threshold)return null;
-  let nearest=null,best=threshold;
-  for(let i=0;i<7;i++){const d=distance(pointAt(i));if(d<=best){nearest=i;best=d;}}
-  if(nearest!==null)return locked(nearest)?null:nearest;
-  const selected=Number($('point-choice').value);return locked(selected)?null:selected;
+  if(!$('overlay').checked)return null;
+  return pickDragPoint({point,points:Array.from({length:7},(_,i)=>pointAt(i)),
+    sourceCenter:state.initial?.sourceCenter??null,targetCenter:state.displayCenter,
+    scale:displayScale(source),locked:Array.from({length:8},(_,i)=>i).filter(locked)});
 }
 source.addEventListener('pointerdown',e=>{
+  if(e.isPrimary===false||e.button!==0||dragGesture)return;
   dragging=null;if(!state.gray||state.busy)return;
   const p=clickCoordinates(e);if(p[0]<0||p[1]<0||p[0]>=state.width||p[1]>=state.height)return;
   dragging=pointerTarget(p);if(dragging===null)return;
+  dragGesture=startPointDrag({index:dragging,origin:pointAt(dragging),pointer:p,
+    client:[e.clientX,e.clientY],pointerId:e.pointerId});
   source.setPointerCapture(e.pointerId);
-  try{updatePoint(dragging,p);changed();}catch(err){status(err.message,true);}
 });
 source.addEventListener('pointermove',e=>{
-  if(dragging===null||state.busy||locked(dragging))return;
-  const p=clickCoordinates(e).map((v,i)=>Math.max(0,Math.min((i?state.height:state.width)-1,v)));
-  try{updatePoint(dragging,p);changed();}catch(err){status(err.message,true);}
+  if(dragging===null||!dragGesture||state.busy||locked(dragging))return;
+  try{
+    const next=advancePointDrag(dragGesture,{pointer:clickCoordinates(e),client:[e.clientX,e.clientY],
+      pointerId:e.pointerId,width:state.width,height:state.height});
+    if(!next)return;
+    dragGesture=next.gesture;updatePoint(dragging,next.point);changed();
+  }catch(err){status(err.message,true);}
 });
-function finishDrag(){
-  if(dragging!==null){
-    const annotating=!state.initial||(dragging>=5&&dragging<7&&!state.initial.sourceCenter);
-    if(annotating)$('point-choice').value=String(Math.min(6,dragging+1));
-    dragging=null;if(annotating)changed(true);else updateCoordinateInputs();
-  }
+function finishDrag(event){
+  if(dragging===null||!dragGesture||event.pointerId!==dragGesture.pointerId)return;
+  const moved=dragGesture.moved,annotating=!state.initial||(dragging>=5&&dragging<7&&!state.initial.sourceCenter);
+  if(moved&&annotating&&event.type==='pointerup')$('point-choice').value=String(Math.min(6,dragging+1));
+  dragging=null;dragGesture=null;
+  if(moved){if(annotating)changed(true);else updateCoordinateInputs();}
 }
-source.addEventListener('pointerup',finishDrag);source.addEventListener('pointercancel',finishDrag);
+source.addEventListener('pointerup',finishDrag);source.addEventListener('pointercancel',finishDrag);source.addEventListener('lostpointercapture',finishDrag);
+$('point-choice').addEventListener('change',()=>{
+  const index=Number($('point-choice').value);
+  $('coordinates').querySelector('input[data-point="'+index+'"][data-axis="0"]')?.focus();
+});
 for(const id of ['alpha','beta','keep-beta'])$(id).addEventListener('change',()=>{state.manualTargetPoints=null;changed();});
 for(const id of ['head-shift','head-refine'])$(id).addEventListener('change',()=>changed());
 $('overlay').addEventListener('change',()=>{drawSource();drawResult();});
@@ -307,7 +314,7 @@ $('clear-h').onclick=()=>{
   $('point-choice').value='5';changed(true);
 };
 $('reset-points').onclick=()=>{
-  if(state.busy)return;state.points=Array(5).fill(null);state.head=Array(2).fill(null);state.initial=null;state.targetCenter=null;state.manualTargetPoints=null;state.box=null;state.review=true;$('point-choice').value='0';changed(true);
+  if(state.busy)return;dragging=null;dragGesture=null;state.points=Array(5).fill(null);state.head=Array(2).fill(null);state.initial=null;state.targetCenter=null;state.manualTargetPoints=null;state.box=null;state.review=true;$('point-choice').value='0';changed(true);
 };
 $('choose-image').onclick=()=>{$('upload').click();};
 $('upload').onchange=async e=>{try{if(e.target.files[0])await setImage(e.target.files[0]);}catch(err){status(err.message,true);}};
