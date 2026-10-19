@@ -69,7 +69,7 @@ Image-editing model SHA-256: `af028a3ffb524b7c9dc90a93e9f21e59cb154d23749a8a34aa
 
 Graf-line model SHA-256: `4be6ed5d9dbe98b9248ccc95fc40d10b9d6735c86dbf5abadcf1ea519f199f6d` (36,643,847 bytes).
 
-The image-editing ONNX model was compared with its original PyTorch generator using non-patient synthetic tensors: maximum absolute output difference 1.61e-6. The original browser adapter was compared with the then-current preprocessing in eight synthetic configurations; tested Float32 maps and composites were bit-identical. A separate two-call browser test verified 17 synthetic fixture checksums, with final-composite maximum absolute difference 4.53e-6 (threshold 1e-4). Those full-pipeline checks describe the original adapter, not the current automatic head trajectory.
+The image-editing ONNX model was compared with its original PyTorch generator using non-patient synthetic tensors: maximum absolute output difference 1.61e-6. The exported weights are unchanged. This checks generator-export consistency, not the complete current browser preprocessing and compositing pipeline.
 
 Current head-coordinate unit tests use independent synthetic expectations for both sides of p3, positive/negative/zero angle changes, a source-fixed frame, coordinate transforms, missing H and direct targets. Existing control tests cover manual overrides, rigid dragging, identity/no-op behavior and optional refinement. A frozen explicit-target fixture checks that manual-target preprocessing/compositing remains unchanged. These CPU unit checks do not revalidate the complete ONNX output against PyTorch or establish clinical accuracy.
 
