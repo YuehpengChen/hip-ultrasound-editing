@@ -1,10 +1,11 @@
 /**
- * Faithful CPU preprocessing/compositing for the published AngleViz v4 runtime.
+ * CPU preprocessing/compositing for the AngleViz browser research demo.
  * This module is independent of ONNX Runtime and the UI. Coordinates are native
  * image pixels, not rescaled landmarks. Images/tensors are channel-first Float32.
  *
- * Canonical source: geom.py, dataset.py and infer.py frozen on 2026-09-15, whose
- * hashes were also checked against the live GX10 runtime on 2026-10-09.
+ * Reference: source-anchored head-coordinate runtime dated 2026-10-20.
+ * Source hashes identify geometry/compositing code, not model equivalence or
+ * clinical validation. The browser keeps its existing ONNX model exports.
  * No thin-plate spline is used at inference: the head operation is a rigid,
  * integer-nearest source-patch translation, as in infer.render_from_gray_lm.
  */
@@ -15,12 +16,12 @@ export const RUNTIME = Object.freeze({
   sweepBetas: Object.freeze([35, 50, 65, 80]),
   trainingAlphaRange: Object.freeze([34, 82]),
   trainingBetaRange: Object.freeze([35, 86]),
-  headSlopeLateral: -0.0124, headSlopeDepth: -0.0132,
+  headSlopeLateral: -0.0124, headSlopeDepth: -0.0131,
   headScale: 0.9, geometryChannels: 8,
   sourceHashes: Object.freeze({
-    geom: '77cc2b09a1be03050dfe80449d822a84f3721871d394e47f2096e20410bcdee7',
+    geom: '72bb422778fed706da99bc2ce9e265b337b8a9a953c309ff837bb1a6c859359d',
     dataset: '0802cdf02955e8568dbb03e3bee48734b691cfed05bb2b362bb2a821179ef8dc',
-    infer: '8f440ab92194e23bc35c24c8720e4e92cbcf0e6991f2483b10cbda5569719d55',
+    infer: '2f34b2c5e40553612ac0ec169796db46f8cd9824b705b5b1ad6b87f8c380d1a5',
   }),
 });
 
@@ -124,21 +125,27 @@ export function headFromEndpoints(endpoints) {
   };
 }
 
-export function signedHeadAxes(points) {
-  const baseline = sub(points[1], points[0]), length = Math.hypot(...baseline) + 1e-9;
+/** Source-fixed regression frame: depth points from p3 toward observed f. */
+export function signedHeadAxes(points, sourceCenter) {
+  if (!Array.isArray(points) || points.length !== 5 ||
+      points.some(p => !Array.isArray(p) || p.length !== 2 || !p.every(Number.isFinite)) ||
+      !Array.isArray(sourceCenter) || sourceCenter.length !== 2 || !sourceCenter.every(Number.isFinite)) {
+    throw new TypeError('The head frame requires five finite landmarks and the observed source head centre.');
+  }
+  const baseline = sub(points[1], points[0]), length = Math.hypot(...baseline);
+  if (length < 1e-9) throw new RangeError('The head frame requires a non-zero baseline.');
   const u = baseline.map(v => v / length);
   const signU = dot(sub(points[3], points[2]), u) >= 0 ? 1 : -1;
   const lateral = u.map(v => v * signU);
   const v = [-lateral[1], lateral[0]];
-  const baselineMid = points[0].map((x, i) => 0.5 * (x + points[1][i]));
-  const signV = dot(sub(points[2], baselineMid), v) >= 0 ? 1 : -1;
+  const signV = dot(sub(sourceCenter, points[2]), v) >= 0 ? 1 : -1;
   return { lateral, depth: v.map(x => x * signV), length };
 }
 
 export function solveTargetHead(points, sourceCenter, targetAlpha) {
   if (!sourceCenter) return null;
   const dA = targetAlpha - grafAngles(points).alpha;
-  const { lateral, depth, length } = signedHeadAxes(points);
+  const { lateral, depth, length } = signedHeadAxes(points, sourceCenter);
   return sourceCenter.map((x, i) => x + dA * length *
     (RUNTIME.headSlopeLateral * lateral[i] + RUNTIME.headSlopeDepth * depth[i]));
 }
@@ -305,7 +312,7 @@ function prepareHeadLayers(original, width, height, targetPoints, sourceCenter, 
  * are [0,255]; normalized=true accepts [0,1]. Do not supply a zeroed/masked image.
  * H is optional and supplied as two source diameter endpoints in this crop.
  * targetHeadCenter optionally prescribes f* without changing source f/radius.
- * Omitting it preserves the paper's angle-derived target and original numerics.
+ * Omitting it uses the angle-derived target in the fixed source head frame.
  * Optional targetPoints uses direct p4/p5 coordinates instead of the original
  * angle solver. Its measured angles drive H; its complete geometry drives GAN.
  */

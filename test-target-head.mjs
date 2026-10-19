@@ -35,12 +35,12 @@ function samePrepared(actual, expected, message) {
   }
 }
 
-// Frozen before the optional target-center control was added. The default path
-// must preserve the deployed angle-derived preprocessing bit for bit.
+// Frozen explicit-target fixture: manual-target preprocessing and compositing
+// are independent of the automatic source-frame displacement coefficients.
 {
   const input = fixture();
   input.targetAlpha += 8;
-  const prepared = prepareEdit(input);
+  const prepared = prepareEdit({...input, targetHeadCenter: [152.608, 138.056]});
   const arrays = { original: prepared.original, mask: prepared.mask,
     geometry: prepared.geometry, translated: prepared.headLayers.translated,
     weight: prepared.headLayers.weight, roofKeep: prepared.headLayers.roofKeep,
@@ -55,12 +55,13 @@ function samePrepared(actual, expected, message) {
     seam: 'eb076340efcdbdd9506725501b01b566f38c4e6c2a50e6f5c7d8f337f90dc4ec',
   };
   for (const [name, values] of Object.entries(arrays)) {
-    equal(digest(values), expected[name], `default ${name} is numerically unchanged`);
+    equal(digest(values), expected[name], `explicit-target ${name} is numerically unchanged`);
   }
-  samePrepared(prepareEdit({ ...input, targetHeadCenter: null }), prepared,
+  const automatic = prepareEdit(input);
+  samePrepared(prepareEdit({ ...input, targetHeadCenter: null }), automatic,
     'null override retains the angle-derived behavior');
-  samePrepared(prepareEdit({ ...input, targetHeadCenter: prepared.head.targetCenter.slice() }),
-    prepared, 'explicit angle-derived center gives the same numerical result');
+  samePrepared(prepareEdit({ ...input, targetHeadCenter: automatic.head.targetCenter.slice() }),
+    automatic, 'explicit angle-derived center gives the same numerical result');
 }
 
 // A target center is independent of the fixed source H and may move the head

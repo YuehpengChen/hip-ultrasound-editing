@@ -45,6 +45,7 @@ jobs:
           node test-bounded-controls.mjs
           node test-direct-target.mjs
           node test-target-head.mjs
+          node test-head-coordinate.mjs
           node test-landmark-controls.mjs
           node test-head-edit-runner.mjs
           node test-keypoint-controls.mjs

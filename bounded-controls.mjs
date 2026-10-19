@@ -1,4 +1,4 @@
-import {cropBox, grafAngles, headFromEndpoints, solveTargetKeypoints, validateTargetPoints} from './geometry.mjs?v=20261010-direct-target';
+import {cropBox, grafAngles, headFromEndpoints, solveTargetKeypoints, validateTargetPoints} from './geometry.mjs?v=20261020-source-head-frame';
 import {targetHeadEndpoints} from './head-controls.mjs';
 
 // These are software interaction limits, not clinically validated ranges.

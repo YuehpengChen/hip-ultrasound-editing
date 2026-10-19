@@ -1,5 +1,5 @@
-import {prepareEdit,runPreparedEdit,rgbaToGrayscale,extractNativeCrop,grayscaleBytes,solveTargetHead,grafAngles} from './geometry.mjs?v=20261010-direct-target';
-import {captureInitialGeometry,boundTargetCenter,headHandlesAtCenter,targetPointsForRequest,directTargetPoints} from './bounded-controls.mjs?v=20261010-equal-head-range';
+import {prepareEdit,runPreparedEdit,rgbaToGrayscale,extractNativeCrop,grayscaleBytes,solveTargetHead,grafAngles} from './geometry.mjs?v=20261020-source-head-frame';
+import {captureInitialGeometry,boundTargetCenter,headHandlesAtCenter,targetPointsForRequest,directTargetPoints} from './bounded-controls.mjs?v=20261020-source-head-frame';
 import {headCenter} from './landmark-controls.mjs?v=20261010-p5';
 import {keypointTensor,decodeGrafHeatmaps} from './keypoint-controls.mjs?v=20261010-keypoint';
 import {pickDragPoint,startPointDrag,advancePointDrag} from './point-drag-controls.mjs?v=20261011-intentional-drag';
